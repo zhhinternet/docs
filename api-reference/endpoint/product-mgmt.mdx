@@ -33,31 +33,47 @@ openapi: 'GET /v2/quecproductmgr/r3/openapi/products'
 ## 数据格式
 
 <Tabs>
-  <Tab title="物模型(TSL)">
-    **物模型规范语言** - 定义设备属性、服务和事件的标准化JSON架构。
+  <Tab title="物模型格式 (dataFmt: 3)">
+    **物模型规范语言** - 使用标准化的TSL格式定义设备功能。
     
     ```json
     {
+      "profile": {
+        "tslVersion": "1.2.0",
+        "productKey": "p12345",
+        "version": "20250324120550539"
+      },
       "properties": [
         {
+          "specs": [
+            {
+              "dataType": "FLOAT",
+              "min": "-40.0",
+              "max": "85.0",
+              "unit": "°C"
+            }
+          ],
           "code": "temperature",
           "dataType": "FLOAT",
           "name": "温度",
-          "unit": "°C"
+          "subType": "RW",
+          "id": 1,
+          "sort": 1,
+          "type": "PROPERTY"
         }
       ]
     }
     ```
   </Tab>
   
-  <Tab title="透传格式">
-    **原始数据** - 用于专用设备的自定义二进制或文本协议。
+  <Tab title="透传格式 (dataFmt: 0)">
+    **透传/自定义格式** - 设备数据不经过物模型解析，直接透传。
     
     ```json
     {
       "format": "CUSTOM",
       "encoding": "hex",
-      "parser": "custom_protocol_v1"
+      "description": "设备使用自定义协议，数据直接透传"
     }
     ```
   </Tab>
@@ -142,57 +158,6 @@ curl -X GET "https://iot-api.quectelcn.com/v2/quecproductmgr/r3/openapi/products
 
 </CodeGroup>
 
-## 查询产品详情
-
-### 接口地址
-`GET /v2/quecproductmgr/r3/openapi/product/detail`
-
-### 请求参数
-
-| 参数名 | 类型 | 必填 | 说明 |
-|--------|------|------|------|
-| productKey | String | 是 | 产品PK |
-
-### 代码示例
-
-<CodeGroup>
-
-```javascript JavaScript
-async function getProductDetail(token, productKey) {
-  const params = new URLSearchParams({ productKey });
-  
-  const response = await fetch(
-    `https://iot-api.quectelcn.com/v2/quecproductmgr/r3/openapi/product/detail?${params}`,
-    {
-      headers: {
-        'Authorization': token,
-        'Content-Type': 'application/json'
-      }
-    }
-  );
-  
-  return await response.json();
-}
-
-const productDetail = await getProductDetail(token, 'p12345');
-```
-
-```python Python
-def get_product_detail(token, product_key):
-    url = "https://iot-api.quectelcn.com/v2/quecproductmgr/r3/openapi/product/detail"
-    
-    params = {"productKey": product_key}
-    
-    headers = {
-        "Authorization": token,
-        "Content-Type": "application/json"
-    }
-    
-    response = requests.get(url, params=params, headers=headers)
-    return response.json()
-```
-
-</CodeGroup>
 
 ## 响应示例
 
@@ -201,24 +166,24 @@ def get_product_detail(token, product_key):
 ```json
 {
   "code": 200,
-  "msg": "OK",
+  "msg": "",
   "data": [
     {
-      "productKey": "p12345",
-      "productName": "智能温度传感器",
-      "productType": "NORMAL",
-      "dataFormat": "TSL",
-      "networkType": "CELLULAR",
-      "nodeType": "DIRECT",
-      "createTime": "2023-12-01T10:30:00Z",
-      "deviceCount": 1250,
-      "status": "PUBLISHED"
+      "accessType": 0,
+      "connectPlatform": 0,
+      "createTime": "1730871606221",
+      "dataFmt": 3,
+      "logoPath": null,
+      "netWay": "2",
+      "productKey": "PK0001",
+      "productName": "智能温湿度传感器",
+      "updateTime": "1730871699999"
     }
   ],
   "pageNum": 1,
-  "pageSize": 20,
-  "total": 45,
-  "pages": 3
+  "pageSize": 10,
+  "pages": 1,
+  "total": 1
 }
 ```
 
@@ -260,8 +225,8 @@ def get_product_detail(token, product_key):
 | 参数名 | 类型 | 必填 | 说明 |
 |--------|------|------|------|
 | pageNum | Integer | 否 | 分页码(默认:1) |
-| pageSize | Integer | 否 | 分页，每页大小(默认:20，最大:100) |
-| productType | String | 否 | 产品类型过滤 |
+| pageSize | Integer | 否 | 分页，每页大小(默认:10) |
+| productKey | String | 否 | 产品Key，用于精确查询指定产品 |
 
 ## 响应参数
 
@@ -279,12 +244,12 @@ def get_product_detail(token, product_key):
 
 | 字段名 | 类型 | 说明 |
 |--------|------|------|
-| productKey | String | 产品PK |
+| productKey | String | 产品Key |
 | productName | String | 产品名称 |
-| productType | String | 产品类型：NORMAL-普通设备，GATEWAY-网关设备，CHILD-子设备 |
-| dataFormat | String | 数据格式：TSL-物模型，CUSTOM-透传 |
-| nodeType | String | 节点类型：DIRECT-直连，GATEWAY-网关 |
-| networkType | String | 网络类型：CELLULAR-蜂窝，WIFI-WiFi，BLUETOOTH-蓝牙，ETHERNET-以太网 |
-| createTime | String | 创建时间 |
-| deviceCount | Integer | 设备数量 |
-| status | String | 产品状态 |
+| accessType | Integer | 设备类型：0-直连设备，1-网关设备，2-网关子设备 |
+| dataFmt | Integer | 数据格式：0-透传/自定义，3-物模型 |
+| netWay | String | 联网方式：1-WiFi(MQTT)，2-2G/3G/4G/5G(MQTT)，3-NB-IoT(LwM2M)，5-蓝牙(HTTP) |
+| connectPlatform | Integer | 接入平台：0-移远云平台，1-电信AEP平台 |
+| createTime | String | 创建时间(时间戳) |
+| updateTime | String | 更新时间(时间戳) |
+| logoPath | String | 产品Logo地址 |

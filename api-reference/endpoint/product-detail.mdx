@@ -149,90 +149,96 @@ curl -X GET "https://iot-api.quectelcn.com/v2/quecproductmgr/r3/openapi/product/
 ```json
 {
   "code": 200,
-  "msg": "OK",
+  "msg": "",
   "data": {
-    "productKey": "p12345",
+    "accessType": 0,
+    "connectPlatform": 0,
+    "createTime": "1730871606221",
+    "dataFmt": 3,
+    "logoPath": null,
+    "netWay": "1",
+    "productConfig": {
+      "aiCapabilityStatus": true
+    },
+    "productKey": "PK0001",
     "productName": "智能温湿度传感器",
-    "productType": "NORMAL",
-    "dataFormat": "TSL",
-    "nodeType": "DIRECT",
-    "networkType": "CELLULAR",
-    "createTime": "2023-12-01T10:30:00Z",
-    "deviceCount": 1250,
-    "onlineDeviceCount": 892,
-    "status": "PUBLISHED",
-    "description": "工业级温湿度监测传感器，支持4G-LTE连接",
-    "manufacturer": "移远通信",
-    "model": "QT-TH-001",
-    "version": "1.2.0",
-    "certification": ["CE", "FCC", "CCC"],
-    "features": {
-      "batteryLife": "5年",
-      "operatingTemp": "-40°C to +85°C",
-      "accuracy": "±0.3°C, ±2%RH",
-      "ipRating": "IP67"
-    },
-    "tslVersion": "v1.0.2",
-    "securityPolicy": {
-      "authType": "PSK",
-      "encryption": "AES256"
-    },
-    "quota": {
-      "maxDevices": 10000,
-      "usedDevices": 1250,
-      "remainingDevices": 8750
-    }
+    "updateTime": "1730871699999"
   }
 }
 ```
 
-## 产品配置详解
+## 产品字段详解
 
 <AccordionGroup>
-  <Accordion title="数据格式 (dataFormat)">
-    **TSL格式**: 使用标准化的物模型（Thing Specification Language）
+  <Accordion title="数据格式 (dataFmt)">
+    **物模型格式 (3)**: 使用标准化的TSL物模型
     - 结构化的属性、服务、事件定义
     - 支持数据类型验证和转换
     - 便于平台统一处理和展示
     
-    **CUSTOM格式**: 自定义数据格式
+    **透传格式 (0)**: 透传/自定义数据格式
     - 透传原始数据，不进行解析
     - 需要应用层自行处理数据格式
     - 适用于特殊协议或二进制数据
   </Accordion>
   
-  <Accordion title="网络类型 (networkType)">
-    **CELLULAR**: 蜂窝网络连接
-    - 2G/3G/4G/5G网络
-    - 广域覆盖，适合移动场景
-    - 运营商计费模式
-    
-    **WIFI**: Wi-Fi网络连接
-    - 2.4GHz/5GHz频段
+  <Accordion title="联网方式 (netWay)">
+    **WiFi(MQTT) (1)**: Wi-Fi网络连接
+    - 2.4GHz/5GHz频段，使用MQTT协议
     - 局域网部署，成本较低
     - 依赖WiFi基础设施
     
-    **BLUETOOTH**: 蓝牙连接
-    - 近距离通信
-    - 低功耗特性
-    - 适合可穿戴设备
+    **2G/3G/4G/5G(MQTT) (2)**: 蜂窝网络连接
+    - 2G/3G/4G/5G网络，使用MQTT协议
+    - 广域覆盖，适合移动场景
+    - 运营商计费模式
     
-    **ETHERNET**: 有线以太网
-    - 稳定可靠连接
-    - 高带宽传输
-    - 适合固定部署场景
+    **NB-IoT(LwM2M) (3)**: 窄带物联网
+    - NB-IoT网络，使用LwM2M协议
+    - 低功耗广域网络
+    - 适合大规模IoT部署
+    
+    **蓝牙(HTTP) (5)**: 蓝牙连接
+    - 蓝牙通信，使用HTTP协议
+    - 近距离通信，低功耗特性
+    - 适合可穿戴设备
   </Accordion>
   
-  <Accordion title="节点类型 (nodeType)">
-    **DIRECT**: 直连节点
+  <Accordion title="设备类型 (accessType)">
+    **直连设备 (0)**: 直连节点
     - 设备直接连接到IoT平台
     - 独立的设备身份和连接
     - 完整的设备管理功能
     
-    **GATEWAY**: 网关节点
+    **网关设备 (1)**: 网关节点
     - 作为其他设备的连接代理
     - 管理子设备的连接和通信
     - 支持协议转换和数据汇聚
+    
+    **网关子设备 (2)**: 子设备节点
+    - 通过网关连接到平台
+    - 依赖网关的连接状态
+    - 简化的设备管理流程
+  </Accordion>
+  
+  <Accordion title="接入平台 (connectPlatform)">
+    **移远云平台 (0)**: 移远自有IoT平台
+    - 完整的IoT设备管理功能
+    - 支持全套API和服务
+    - 推荐的接入方式
+    
+    **电信AEP平台 (1)**: 中国电信AEP平台
+    - 基于电信AEP平台的设备接入
+    - 部分功能可能受限
+    - 特定场景下使用
+  </Accordion>
+  
+  <Accordion title="产品配置 (productConfig)">
+    **AI能力状态 (aiCapabilityStatus)**: AI功能开关
+    - false: AI能力关闭
+    - true: AI能力开启
+    - 默认为false
+    - 影响设备的AI相关功能
   </Accordion>
 </AccordionGroup>
 
