@@ -1,0 +1,677 @@
+---
+title: '查询设备历史上下行数据'
+openapi: 'GET /v2/quecdatastorage/r1/openapi/device/data/history'
+---
+
+## 查询设备历史上下行数据
+
+获取设备与平台之间的历史通信记录，包括上行遥测数据和下行控制命令。这些数据对于监控趋势、调试问题、性能分析和合规报告至关重要。
+
+## 通信数据类型
+
+<CardGroup cols={2}>
+  <Card title="上行数据" icon="arrow-up">
+    设备发送到平台的遥测数据、状态报告和事件
+  </Card>
+  <Card title="下行数据" icon="arrow-down">
+    平台发送到设备的控制命令、配置更新和服务调用
+  </Card>
+</CardGroup>
+
+## 数据保留策略
+
+<Info>
+**数据保留期**: 通信数据保留90天，超期数据将被自动清理。建议定期导出重要数据进行长期存储。
+</Info>
+
+## 接口地址
+
+`GET /v2/quecdatastorage/r1/openapi/device/data/history`
+
+## 请求参数
+
+| 参数名 | 类型 | 必填 | 说明 |
+|--------|------|------|------|
+| productKey | String | 是 | 产品PK |
+| deviceKey | String | 是 | 设备DK |
+| startTime | String | 是 | 开始时间(ISO 8601格式) |
+| endTime | String | 是 | 结束时间(ISO 8601格式) |
+| pageNum | Integer | 否 | 分页码(默认:1) |
+| pageSize | Integer | 否 | 分页，每页大小(默认:20，最大:100) |
+| direction | String | 否 | 消息方向：UP-上行，DOWN-下行 |
+
+## 代码示例
+
+<CodeGroup>
+
+```javascript JavaScript
+async function getDeviceDataHistory(token, query) {
+  const {
+    productKey,
+    deviceKey,
+    startTime,
+    endTime,
+    pageNum = 1,
+    pageSize = 20,
+    direction // 可选: 'UP', 'DOWN', 或 undefined 表示两者
+  } = query;
+  
+  const params = new URLSearchParams({
+    productKey,
+    deviceKey,
+    startTime,
+    endTime,
+    pageNum: pageNum.toString(),
+    pageSize: pageSize.toString()
+  });
+  
+  if (direction) {
+    params.append('direction', direction);
+  }
+  
+  const response = await fetch(
+    `https://iot-api.quectelcn.com/v2/quecdatastorage/r1/openapi/device/data/history?${params}`,
+    {
+      headers: {
+        'Authorization': token,
+        'Content-Type': 'application/json'
+      }
+    }
+  );
+  
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  }
+  
+  return await response.json();
+}
+
+// 查询最近7天的设备数据
+const endTime = new Date().toISOString();
+const startTime = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
+const dataHistory = await getDeviceDataHistory(token, {
+  productKey: 'p12345',
+  deviceKey: 'd67890',
+  startTime,
+  endTime,
+  pageSize: 100
+});
+
+console.log(`找到 ${dataHistory.total} 条数据记录`);
+dataHistory.data.forEach(record => {
+  console.log(`${record.timestamp}: ${record.direction} - ${JSON.stringify(record.data)}`);
+});
+
+// 仅查询上行数据
+const uplinkData = await getDeviceDataHistory(token, {
+  productKey: 'p12345',
+  deviceKey: 'd67890',
+  startTime,
+  endTime,
+  direction: 'UP',
+  pageSize: 50
+});
+
+// 仅查询下行命令
+const downlinkCommands = await getDeviceDataHistory(token, {
+  productKey: 'p12345',
+  deviceKey: 'd67890',
+  startTime,
+  endTime,
+  direction: 'DOWN',
+  pageSize: 50
+});
+
+// 分析温度数据趋势
+function analyzeTemperatureTrends(dataHistory) {
+  const temperatureData = dataHistory.data
+    .filter(record => record.direction === 'UP' && record.data.temperature)
+    .map(record => ({
+      timestamp: record.timestamp,
+      temperature: record.data.temperature
+    }));
+  
+  if (temperatureData.length === 0) return null;
+  
+  const temperatures = temperatureData.map(d => d.temperature);
+  
+  return {
+    count: temperatureData.length,
+    average: temperatures.reduce((sum, t) => sum + t, 0) / temperatures.length,
+    min: Math.min(...temperatures),
+    max: Math.max(...temperatures),
+    trend: temperatureData
+  };
+}
+
+const temperatureTrends = analyzeTemperatureTrends(dataHistory);
+if (temperatureTrends) {
+  console.log(`温度趋势分析: 平均 ${temperatureTrends.average.toFixed(2)}°C, 范围 ${temperatureTrends.min}°C - ${temperatureTrends.max}°C`);
+}
+
+// 获取所有历史数据（处理分页）
+async function getAllDeviceDataHistory(token, query) {
+  let allData = [];
+  let currentPage = 1;
+  let totalPages = 1;
+  const pageSize = 100;
+  
+  do {
+    const response = await getDeviceDataHistory(token, {
+      ...query,
+      pageNum: currentPage,
+      pageSize
+    });
+    
+    allData = allData.concat(response.data);
+    totalPages = response.pages;
+    currentPage++;
+  } while (currentPage <= totalPages);
+  
+  return {
+    total: allData.length,
+    data: allData
+  };
+}
+
+// 获取大量历史数据
+const allHistoryData = await getAllDeviceDataHistory(token, {
+  productKey: 'p12345',
+  deviceKey: 'd67890',
+  startTime,
+  endTime
+});
+
+console.log(`获取到全部 ${allHistoryData.total} 条历史数据`);
+```
+
+```python Python
+import requests
+from datetime import datetime, timedelta
+
+def get_device_data_history(token, query):
+    """
+    查询设备历史通信数据
+    
+    Args:
+        token: JWT认证token
+        query: 包含查询参数的字典
+    
+    Returns:
+        包含分页信息的历史数据记录
+    """
+    url = "https://iot-api.quectelcn.com/v2/quecdatastorage/r1/openapi/device/data/history"
+    
+    params = {
+        "productKey": query["productKey"],
+        "deviceKey": query["deviceKey"],
+        "startTime": query["startTime"],
+        "endTime": query["endTime"],
+        "pageNum": query.get("pageNum", 1),
+        "pageSize": query.get("pageSize", 20)
+    }
+    
+    # 添加可选的消息方向过滤
+    if "direction" in query:
+        params["direction"] = query["direction"]
+    
+    headers = {
+        "Authorization": token,
+        "Content-Type": "application/json"
+    }
+    
+    response = requests.get(url, params=params, headers=headers)
+    response.raise_for_status()
+    
+    return response.json()
+
+# 查询最近7天的设备数据
+end_time = datetime.now().isoformat()
+start_time = (datetime.now() - timedelta(days=7)).isoformat()
+
+query = {
+    "productKey": "p12345",
+    "deviceKey": "d67890",
+    "startTime": start_time,
+    "endTime": end_time,
+    "pageSize": 100
+}
+
+data_history = get_device_data_history(token, query)
+print(f"找到 {data_history['total']} 条数据记录")
+
+for record in data_history['data']:
+    print(f"{record['timestamp']}: {record['direction']} - {record['data']}")
+
+# 数据历史分析器类
+class DataHistoryAnalyzer:
+    def __init__(self, token):
+        self.token = token
+    
+    def get_uplink_data(self, product_key, device_key, start_time, end_time):
+        """获取上行数据"""
+        query = {
+            "productKey": product_key,
+            "deviceKey": device_key,
+            "startTime": start_time,
+            "endTime": end_time,
+            "direction": "UP",
+            "pageSize": 100
+        }
+        return get_device_data_history(self.token, query)
+    
+    def get_downlink_commands(self, product_key, device_key, start_time, end_time):
+        """获取下行命令"""
+        query = {
+            "productKey": product_key,
+            "deviceKey": device_key,
+            "startTime": start_time,
+            "endTime": end_time,
+            "direction": "DOWN",
+            "pageSize": 100
+        }
+        return get_device_data_history(self.token, query)
+    
+    def analyze_communication_pattern(self, product_key, device_key, days=7):
+        """分析通信模式"""
+        end_time = datetime.now().isoformat()
+        start_time = (datetime.now() - timedelta(days=days)).isoformat()
+        
+        uplink = self.get_uplink_data(product_key, device_key, start_time, end_time)
+        downlink = self.get_downlink_commands(product_key, device_key, start_time, end_time)
+        
+        return {
+            "period_days": days,
+            "uplink_messages": uplink['total'],
+            "downlink_messages": downlink['total'],
+            "total_messages": uplink['total'] + downlink['total'],
+            "avg_messages_per_day": (uplink['total'] + downlink['total']) / days,
+            "uplink_ratio": uplink['total'] / (uplink['total'] + downlink['total']) if (uplink['total'] + downlink['total']) > 0 else 0
+        }
+    
+    def detect_data_anomalies(self, data_points, metric="temperature", threshold=2):
+        """检测数据异常"""
+        values = []
+        for record in data_points:
+            if metric in record.get('data', {}):
+                values.append(record['data'][metric])
+        
+        if len(values) < 3:
+            return []
+        
+        mean = sum(values) / len(values)
+        variance = sum((x - mean) ** 2 for x in values) / len(values)
+        std_dev = variance ** 0.5
+        
+        anomalies = []
+        for i, record in enumerate(data_points):
+            if metric in record.get('data', {}):
+                value = record['data'][metric]
+                if abs(value - mean) > threshold * std_dev:
+                    anomalies.append({
+                        'timestamp': record['timestamp'],
+                        'value': value,
+                        'deviation': abs(value - mean) / std_dev
+                    })
+        
+        return anomalies
+    
+    def get_all_data_history(self, product_key, device_key, start_time, end_time):
+        """获取所有历史数据（处理分页）"""
+        all_data = []
+        current_page = 1
+        page_size = 100
+        
+        while True:
+            query = {
+                "productKey": product_key,
+                "deviceKey": device_key,
+                "startTime": start_time,
+                "endTime": end_time,
+                "pageNum": current_page,
+                "pageSize": page_size
+            }
+            
+            response = get_device_data_history(self.token, query)
+            all_data.extend(response['data'])
+            
+            if current_page >= response['pages']:
+                break
+            current_page += 1
+        
+        return all_data
+
+# 使用数据历史分析器
+analyzer = DataHistoryAnalyzer(token)
+
+# 分析通信模式
+comm_pattern = analyzer.analyze_communication_pattern("p12345", "d67890", days=7)
+print(f"通信模式分析: 7天内共 {comm_pattern['total_messages']} 条消息")
+print(f"上行消息占比: {comm_pattern['uplink_ratio']:.2%}")
+
+# 获取上行数据并检测异常
+uplink_data = analyzer.get_uplink_data("p12345", "d67890", start_time, end_time)
+anomalies = analyzer.detect_data_anomalies(uplink_data['data'], "temperature")
+
+if anomalies:
+    print(f"检测到 {len(anomalies)} 个温度异常值:")
+    for anomaly in anomalies[:5]:  # 显示前5个异常
+        print(f"  {anomaly['timestamp']}: {anomaly['value']}°C (偏差: {anomaly['deviation']:.2f}σ)")
+```
+
+```curl cURL
+# 查询最近24小时的设备数据历史
+curl -X GET "https://iot-api.quectelcn.com/v2/quecdatastorage/r1/openapi/device/data/history?productKey=p12345&deviceKey=d67890&startTime=2023-12-14T14:30:25Z&endTime=2023-12-15T14:30:25Z&pageNum=1&pageSize=50" \
+  -H "Authorization: YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json"
+
+# 仅查询上行数据
+curl -X GET "https://iot-api.quectelcn.com/v2/quecdatastorage/r1/openapi/device/data/history?productKey=p12345&deviceKey=d67890&startTime=2023-12-14T14:30:25Z&endTime=2023-12-15T14:30:25Z&direction=UP&pageSize=100" \
+  -H "Authorization: YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json"
+
+# 仅查询下行命令
+curl -X GET "https://iot-api.quectelcn.com/v2/quecdatastorage/r1/openapi/device/data/history?productKey=p12345&deviceKey=d67890&startTime=2023-12-14T14:30:25Z&endTime=2023-12-15T14:30:25Z&direction=DOWN&pageSize=100" \
+  -H "Authorization: YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json"
+
+# 查询大时间范围数据（分页）
+curl -X GET "https://iot-api.quectelcn.com/v2/quecdatastorage/r1/openapi/device/data/history?productKey=p12345&deviceKey=d67890&startTime=2023-12-01T00:00:00Z&endTime=2023-12-15T23:59:59Z&pageNum=1&pageSize=100" \
+  -H "Authorization: YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json"
+```
+
+</CodeGroup>
+
+## 响应示例
+
+### 成功响应
+
+```json
+{
+  "code": 200,
+  "msg": "OK",
+  "data": [
+    {
+      "messageId": "msg_1234567890abcdef",
+      "timestamp": "2023-12-15T14:30:25.123Z",
+      "direction": "UP",
+      "dataType": "PROPERTY",
+      "data": {
+        "temperature": 23.5,
+        "humidity": 65.2,
+        "pressure": 1013.25
+      },
+      "metadata": {
+        "protocol": "MQTT",
+        "qos": 1,
+        "payloadSize": 156
+      }
+    },
+    {
+      "messageId": "msg_1234567890abcdf0",
+      "timestamp": "2023-12-15T14:25:10.456Z",
+      "direction": "DOWN",
+      "dataType": "COMMAND",
+      "data": {
+        "switch": true,
+        "threshold": 25.0
+      },
+      "metadata": {
+        "protocol": "MQTT",
+        "qos": 1,
+        "commandId": "cmd_12345",
+        "deliveryStatus": "DELIVERED"
+      }
+    }
+  ],
+  "pageNum": 1,
+  "pageSize": 20,
+  "total": 1847,
+  "pages": 93
+}
+```
+
+### 无数据响应
+
+```json
+{
+  "code": 200,
+  "msg": "OK",
+  "data": [],
+  "pageNum": 1,
+  "pageSize": 20,
+  "total": 0,
+  "pages": 0
+}
+```
+
+## 数据记录字段说明
+
+| 字段名 | 类型 | 说明 |
+|--------|------|------|
+| messageId | String | 消息唯一标识符 |
+| timestamp | String | 消息时间戳(ISO 8601格式) |
+| direction | String | 消息方向：UP-上行，DOWN-下行 |
+| dataType | String | 数据类型：PROPERTY-属性，COMMAND-命令，SERVICE-服务 |
+| data | Object | 消息数据内容（JSON格式） |
+| metadata | Object | 消息元数据信息 |
+
+### 元数据字段说明
+
+| 字段名 | 类型 | 说明 |
+|--------|------|------|
+| protocol | String | 通信协议：MQTT、CoAP、HTTP |
+| qos | Integer | 消息质量等级（MQTT） |
+| payloadSize | Integer | 消息载荷大小（字节） |
+| commandId | String | 命令ID（下行命令） |
+| deliveryStatus | String | 投递状态：PENDING、DELIVERED、FAILED |
+
+## 数据分析应用
+
+<Tabs>
+  <Tab title="时间序列分析">
+    ```javascript
+    // 分析设备数据随时间的变化趋势
+    function analyzeTimeSeries(dataHistory, metric) {
+      const timeSeries = dataHistory.data
+        .filter(record => record.direction === 'UP' && record.data[metric] !== undefined)
+        .map(record => ({
+          timestamp: new Date(record.timestamp).getTime(),
+          value: record.data[metric]
+        }))
+        .sort((a, b) => a.timestamp - b.timestamp);
+      
+      if (timeSeries.length < 2) return null;
+      
+      const values = timeSeries.map(point => point.value);
+      const timeSpan = timeSeries[timeSeries.length - 1].timestamp - timeSeries[0].timestamp;
+      
+      return {
+        dataPoints: timeSeries.length,
+        timeSpanHours: timeSpan / (1000 * 60 * 60),
+        average: values.reduce((sum, v) => sum + v, 0) / values.length,
+        min: Math.min(...values),
+        max: Math.max(...values),
+        trend: calculateTrend(timeSeries),
+        variance: calculateVariance(values)
+      };
+    }
+    
+    function calculateTrend(timeSeries) {
+      // 简单线性回归计算趋势
+      const n = timeSeries.length;
+      const sumX = timeSeries.reduce((sum, point) => sum + point.timestamp, 0);
+      const sumY = timeSeries.reduce((sum, point) => sum + point.value, 0);
+      const sumXY = timeSeries.reduce((sum, point) => sum + point.timestamp * point.value, 0);
+      const sumXX = timeSeries.reduce((sum, point) => sum + point.timestamp * point.timestamp, 0);
+      
+      const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
+      return slope > 0 ? 'INCREASING' : slope < 0 ? 'DECREASING' : 'STABLE';
+    }
+    ```
+  </Tab>
+  
+  <Tab title="异常检测">
+    ```javascript
+    // 基于统计学方法检测数据异常
+    function detectAnomalies(dataHistory, metric, thresholdSigma = 2) {
+      const values = dataHistory.data
+        .filter(record => record.direction === 'UP' && record.data[metric] !== undefined)
+        .map(record => record.data[metric]);
+      
+      if (values.length < 3) return [];
+      
+      const mean = values.reduce((sum, v) => sum + v, 0) / values.length;
+      const variance = values.reduce((sum, v) => sum + Math.pow(v - mean, 2), 0) / values.length;
+      const stdDev = Math.sqrt(variance);
+      
+      return dataHistory.data
+        .filter(record => {
+          if (record.direction !== 'UP' || record.data[metric] === undefined) return false;
+          const deviation = Math.abs(record.data[metric] - mean);
+          return deviation > thresholdSigma * stdDev;
+        })
+        .map(record => ({
+          timestamp: record.timestamp,
+          value: record.data[metric],
+          expectedRange: [mean - thresholdSigma * stdDev, mean + thresholdSigma * stdDev],
+          deviationSigma: Math.abs(record.data[metric] - mean) / stdDev
+        }));
+    }
+    ```
+  </Tab>
+  
+  <Tab title="通信质量分析">
+    ```javascript
+    // 分析设备通信质量指标
+    function analyzeCommunicationQuality(dataHistory) {
+      const uplinks = dataHistory.data.filter(r => r.direction === 'UP');
+      const downlinks = dataHistory.data.filter(r => r.direction === 'DOWN');
+      
+      // 计算消息频率
+      const timeSpan = new Date(dataHistory.data[0].timestamp).getTime() - 
+                      new Date(dataHistory.data[dataHistory.data.length - 1].timestamp).getTime();
+      const hoursSpan = Math.abs(timeSpan) / (1000 * 60 * 60);
+      
+      // 分析协议分布
+      const protocolDistribution = {};
+      dataHistory.data.forEach(record => {
+        const protocol = record.metadata?.protocol || 'UNKNOWN';
+        protocolDistribution[protocol] = (protocolDistribution[protocol] || 0) + 1;
+      });
+      
+      // 分析QoS分布（MQTT）
+      const qosDistribution = {};
+      dataHistory.data.forEach(record => {
+        if (record.metadata?.qos !== undefined) {
+          const qos = record.metadata.qos;
+          qosDistribution[qos] = (qosDistribution[qos] || 0) + 1;
+        }
+      });
+      
+      return {
+        totalMessages: dataHistory.total,
+        uplinkMessages: uplinks.length,
+        downlinkMessages: downlinks.length,
+        messagesPerHour: hoursSpan > 0 ? dataHistory.total / hoursSpan : 0,
+        uplinkRatio: uplinks.length / dataHistory.total,
+        protocolDistribution,
+        qosDistribution,
+        averagePayloadSize: calculateAveragePayloadSize(dataHistory.data),
+        communicationReliability: calculateReliability(downlinks)
+      };
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## 查询优化策略
+
+<AccordionGroup>
+  <Accordion title="时间范围优化">
+    - 使用较小的时间窗口获得更好的查询性能
+    - 单次查询最大时间范围不超过30天
+    - 对大时间段使用分块查询策略
+    - 考虑时区转换对查询结果的影响
+  </Accordion>
+  
+  <Accordion title="分页和批处理">
+    - 使用适当的页面大小(20-100条记录)平衡性能和内存使用
+    - 对大数据集实施批量处理和分页遍历
+    - 实施客户端缓存减少重复查询
+    - 使用并发请求加速大量数据获取
+  </Accordion>
+  
+  <Accordion title="过滤和精确查询">
+    - 尽可能使用direction参数过滤上行或下行数据
+    - 结合时间过滤和方向过滤提高查询精度
+    - 在客户端进一步过滤特定数据类型
+    - 缓存频繁查询的时间段数据
+  </Accordion>
+</AccordionGroup>
+
+## 使用场景
+
+<CardGroup cols={2}>
+  <Card title="设备监控" icon="chart-line">
+    实时监控设备状态和性能指标变化趋势
+  </Card>
+  <Card title="故障诊断" icon="stethoscope">
+    分析历史通信记录定位设备问题根因
+  </Card>
+  <Card title="性能分析" icon="tachometer-alt">
+    评估设备通信质量和数据传输效率
+  </Card>
+  <Card title="合规报告" icon="file-alt">
+    生成设备通信日志用于监管合规审计
+  </Card>
+</CardGroup>
+
+## 最佳实践
+
+<CardGroup cols={2}>
+  <Card title="数据分析" icon="chart-bar">
+    利用统计方法识别数据模式和异常值
+  </Card>
+  <Card title="性能监控" icon="speedometer">
+    监控查询响应时间和数据处理效率
+  </Card>
+  <Card title="存储优化" icon="database">
+    定期归档和清理不必要的历史数据
+  </Card>
+  <Card title="安全合规" icon="shield-check">
+    确保历史数据访问符合隐私和安全要求
+  </Card>
+</CardGroup>
+
+## 错误处理
+
+| 错误码 | 描述 | 解决方案 |
+|--------|------|----------|
+| 50006 | ProductKey为空 | 提供有效的productKey参数 |
+| 50007 | DeviceKey为空 | 提供有效的deviceKey参数 |
+| 50009 | 无效时间范围 | 确保endTime > startTime且都是有效的ISO日期 |
+| 50010 | 时间范围过大 | 缩短查询时间范围(每次查询最大30天) |
+| 70017 | 产品不存在 | 验证产品存在且可访问 |
+| 70018 | 设备不存在 | 验证设备已注册 |
+| 70089 | 权限受限 | 检查SaaS应用数据访问权限 |
+| 60010 | 未找到数据 | 验证设备在查询时间段内是否活跃 |
+
+## 相关接口
+
+<CardGroup cols={2}>
+  <Card title="设备事件历史" href="/api-reference/endpoint/device-event-history">
+    查询设备历史事件和告警记录
+  </Card>
+  <Card title="设备通信" href="/api-reference/endpoint/device-property-write">
+    发送下行数据到设备
+  </Card>
+  <Card title="设备管理" href="/api-reference/endpoint/device-mgmt">
+    设备基本信息和状态管理
+  </Card>
+  <Card title="消息订阅" href="/api-reference/endpoint/subscription-mgmt">
+    实时接收设备数据和事件
+  </Card>
+</CardGroup>

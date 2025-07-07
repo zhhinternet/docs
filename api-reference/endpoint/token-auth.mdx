@@ -1,0 +1,150 @@
+---
+title: 'Token管理API'
+openapi: 'GET /v2/quecauth/accessKeyAuthrize/accessKeyLogin'
+---
+
+## 接口概述
+
+使用AccessKey/AccessSecret获取token，这是调用其他API接口的第一步。您必须先获取JWT token才能进行其他API调用。
+
+## 认证流程
+
+<Steps>
+  <Step title="生成用户名">
+    使用AccessKey和当前时间戳创建用户名字符串：
+    ```
+    ver=1&auth_mode=accessKey&sign_method=sha256&access_key=${AccessKey}&timestamp=${timestamp}
+    ```
+  </Step>
+  <Step title="生成密码">
+    创建用户名+AccessSecret的SHA256哈希值：
+    ```
+    sha256(${username}${AccessSecret})
+    ```
+  </Step>
+  <Step title="URL编码">
+    对用户名进行URL编码以确保安全传输
+  </Step>
+  <Step title="发起请求">
+    使用生成的凭证调用认证端点
+  </Step>
+</Steps>
+
+## 代码示例
+
+<CodeGroup>
+
+```javascript JavaScript
+const crypto = require('crypto');
+
+async function authenticate(accessKey, accessSecret) {
+  const timestamp = Date.now();
+  const username = `ver=1&auth_mode=accessKey&sign_method=sha256&access_key=${accessKey}&timestamp=${timestamp}`;
+  const password = crypto.createHash('sha256').update(username + accessSecret).digest('hex');
+  const encodedUsername = encodeURIComponent(username);
+
+  const response = await fetch(
+    `https://iot-api.quectelcn.com/v2/quecauth/accessKeyAuthrize/accessKeyLogin?grant_type=password&username=${encodedUsername}&password=${password}`,
+    {
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    }
+  );
+
+  const data = await response.json();
+  return data.access_token;
+}
+```
+
+```python Python
+import hashlib
+import urllib.parse
+import time
+import requests
+
+def authenticate(access_key, access_secret):
+    timestamp = int(time.time() * 1000)
+    username = f"ver=1&auth_mode=accessKey&sign_method=sha256&access_key={access_key}&timestamp={timestamp}"
+    password = hashlib.sha256((username + access_secret).encode()).hexdigest()
+    encoded_username = urllib.parse.quote(username)
+
+    url = "https://iot-api.quectelcn.com/v2/quecauth/accessKeyAuthrize/accessKeyLogin"
+    params = {
+        "grant_type": "password",
+        "username": encoded_username,
+        "password": password
+    }
+
+    response = requests.get(url, params=params)
+    return response.json()["access_token"]
+```
+
+```java Java
+import java.security.MessageDigest;
+import java.net.URLEncoder;
+import java.time.Instant;
+
+public class IoTAuth {
+    public String authenticate(String accessKey, String accessSecret) {
+        long timestamp = Instant.now().toEpochMilli();
+        String username = String.format(
+            "ver=1&auth_mode=accessKey&sign_method=sha256&access_key=%s&timestamp=%d",
+            accessKey, timestamp
+        );
+
+        String password = sha256(username + accessSecret);
+        String encodedUsername = URLEncoder.encode(username, "UTF-8");
+
+        // 发起HTTP请求...
+        return token;
+    }
+
+    private String sha256(String input) {
+        MessageDigest digest = MessageDigest.getInstance("SHA-256");
+        byte[] hash = digest.digest(input.getBytes("UTF-8"));
+        return bytesToHex(hash);
+    }
+}
+```
+
+</CodeGroup>
+
+## Token使用
+
+获取JWT token后，在所有后续API调用的Authorization头中包含该token：
+
+```bash
+Authorization: QJWT_eyJhbGciOiJIUzI1NiJ9...
+```
+
+## 安全注意事项
+
+<Warning>
+  **时间同步**: 时间戳必须在服务器时间的10分钟内。请确保系统时钟已同步。
+</Warning>
+
+<Info>
+  **Token过期**: JWT token在2小时后过期。请在应用程序中实现自动token刷新。
+</Info>
+
+## 错误处理
+
+常见认证错误：
+
+- **90047**: AccessKey不存在
+- **401**: 无效凭证
+- **403**: 权限不足
+- **50005**: 参数验证错误
+
+## 速率限制
+
+- **每个AccessKey每小时100次请求**
+- **突发限制**: 每分钟10次请求
+
+超出速率限制将返回HTTP 429，并包含retry-after头。
+
+## 接口地址
+
+- **中国数据中心**: `https://iot-api.quectelcn.com`
+- **欧洲数据中心**: `https://iot-api.acceleronix.io`

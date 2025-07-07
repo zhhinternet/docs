@@ -1,0 +1,388 @@
+---
+title: '添加设备'
+openapi: 'POST /v2/devicemgr/r3/openapi/device/create'
+---
+
+## 添加设备（单个）
+
+创建单个新设备到指定产品下。支持多种认证方式和可选参数配置。
+
+### 接口地址
+`POST /v2/devicemgr/r3/openapi/device/create`
+
+### 请求参数
+
+| 参数名 | 类型 | 必填 | 说明 |
+|--------|------|------|------|
+| productKey | String | 是 | 产品PK |
+| deviceName | String | 是 | 设备名称 |
+| deviceKey | String | 否 | 设备DK(不传则自动生成) |
+| deviceSecret | String | 否 | 设备DS(不传则自动生成) |
+| authMode | Integer | 否 | 认证方式，0-动态认证 1-静态认证 2-X509，默认0 |
+| deviceSN | String | 否 | 设备SN |
+| deviceFingerprint | String | 否 | 设备指纹 X509设备新增时需要该字段 |
+| psk | String | 否 | psk 电信AEP设备新增时需要该字段 |
+
+## 认证方式说明
+
+<CardGroup cols={3}>
+  <Card title="动态认证 (0)" icon="refresh">
+    设备每次连接时动态获取认证信息
+  </Card>
+  <Card title="静态认证 (1)" icon="lock">
+    设备使用固定的认证密钥
+  </Card>
+  <Card title="X509认证 (2)" icon="certificate">
+    使用X509证书进行设备认证
+  </Card>
+</CardGroup>
+
+## 代码示例
+
+<CodeGroup>
+
+```javascript JavaScript
+async function createDevice(token, deviceData) {
+  const response = await fetch(
+    'https://iot-api.quectelcn.com/v2/devicemgr/r3/openapi/device/create',
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': token,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(deviceData)
+    }
+  );
+  
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  }
+  
+  return await response.json();
+}
+
+// 创建普通设备
+const normalDevice = await createDevice(token, {
+  productKey: 'p12345',
+  deviceName: '温度传感器-1楼-A区'
+});
+
+// 创建静态认证设备
+const staticDevice = await createDevice(token, {
+  productKey: 'p12345',
+  deviceName: '湿度传感器-1楼-B区',
+  authMode: 1,
+  deviceSN: 'SN202312001'
+});
+
+// 创建X509认证设备
+const x509Device = await createDevice(token, {
+  productKey: 'p12345',
+  deviceName: '安全传感器-2楼-A区',
+  authMode: 2,
+  deviceFingerprint: 'SHA256:1234567890abcdef...'
+});
+
+console.log(`设备已创建: ${normalDevice.data.deviceKey}`);
+```
+
+```python Python
+import requests
+
+def create_device(token, device_data):
+    """
+    添加设备（单个）
+    
+    Args:
+        token: JWT认证token
+        device_data: 设备创建参数
+    
+    Returns:
+        设备创建结果，包含deviceKey和deviceSecret
+    """
+    url = "https://iot-api.quectelcn.com/v2/devicemgr/r3/openapi/device/create"
+    
+    headers = {
+        "Authorization": token,
+        "Content-Type": "application/json"
+    }
+    
+    response = requests.post(url, json=device_data, headers=headers)
+    response.raise_for_status()
+    
+    return response.json()
+
+# 创建普通设备
+normal_device = create_device(token, {
+    "productKey": "p12345",
+    "deviceName": "温度传感器-1楼-A区"
+})
+
+# 创建带SN的静态认证设备
+static_device = create_device(token, {
+    "productKey": "p12345", 
+    "deviceName": "湿度传感器-1楼-B区",
+    "deviceSN": "SN202312001",
+    "authMode": 1
+})
+
+# 创建X509认证设备
+x509_device = create_device(token, {
+    "productKey": "p12345",
+    "deviceName": "安全传感器-2楼-A区", 
+    "authMode": 2,
+    "deviceFingerprint": "SHA256:1234567890abcdef..."
+})
+
+print(f"设备已创建: {normal_device['data']['deviceKey']}")
+```
+
+```curl cURL
+# 创建普通设备
+curl -X POST "https://iot-api.quectelcn.com/v2/devicemgr/r3/openapi/device/create" \
+  -H "Authorization: YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "productKey": "p12345",
+    "deviceName": "温度传感器-1楼-A区"
+  }'
+
+# 创建静态认证设备
+curl -X POST "https://iot-api.quectelcn.com/v2/devicemgr/r3/openapi/device/create" \
+  -H "Authorization: YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "productKey": "p12345",
+    "deviceName": "湿度传感器-1楼-B区",
+    "authMode": 1,
+    "deviceSN": "SN202312001"
+  }'
+
+# 创建X509认证设备
+curl -X POST "https://iot-api.quectelcn.com/v2/devicemgr/r3/openapi/device/create" \
+  -H "Authorization: YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "productKey": "p12345",
+    "deviceName": "安全传感器-2楼-A区",
+    "authMode": 2,
+    "deviceFingerprint": "SHA256:1234567890abcdef..."
+  }'
+```
+
+</CodeGroup>
+
+## 响应示例
+
+### 成功响应
+
+```json
+{
+  "code": 200,
+  "msg": "OK",
+  "data": {
+    "deviceKey": "d67890abcdef",
+    "deviceSecret": "a1b2c3d4e5f6789012345678",
+    "deviceName": "温度传感器-1楼-A区"
+  }
+}
+```
+
+### 错误响应
+
+```json
+{
+  "code": 70019,
+  "msg": "设备已存在",
+  "error": "Device already exists with the same deviceKey"
+}
+```
+
+## 批量添加设备
+
+### 接口地址
+`POST /v2/devicemgr/r3/openapi/device/createBatch`
+
+### 请求参数
+
+| 参数名 | 类型 | 必填 | 说明 |
+|--------|------|------|------|
+| productKey | String | 是 | 产品PK |
+| devices | Array | 是 | 设备列表(最多100个) |
+
+### 代码示例
+
+<CodeGroup>
+
+```javascript JavaScript
+async function createDevicesBatch(token, productKey, devices) {
+  const response = await fetch(
+    'https://iot-api.quectelcn.com/v2/devicemgr/r3/openapi/device/createBatch',
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': token,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        productKey,
+        devices
+      })
+    }
+  );
+  
+  return await response.json();
+}
+
+// 批量创建设备
+const deviceList = [
+  { deviceName: '传感器-1楼-A区-001' },
+  { deviceName: '传感器-1楼-A区-002' },
+  { deviceName: '传感器-1楼-A区-003' },
+  { 
+    deviceName: '传感器-1楼-A区-004',
+    deviceSN: 'SN202312004',
+    authMode: 1
+  }
+];
+
+const batchResult = await createDevicesBatch(token, 'p12345', deviceList);
+console.log(`批量创建了 ${batchResult.data.length} 个设备`);
+
+// 处理创建结果
+batchResult.data.forEach((device, index) => {
+  if (device.deviceKey) {
+    console.log(`设备 ${index + 1}: ${device.deviceName} - ${device.deviceKey}`);
+  } else {
+    console.error(`设备 ${index + 1} 创建失败:`, device.error);
+  }
+});
+```
+
+```python Python
+def create_devices_batch(token, product_key, devices):
+    """
+    批量添加设备
+    
+    Args:
+        token: JWT认证token
+        product_key: 产品PK
+        devices: 设备列表，每个设备包含deviceName等信息
+    
+    Returns:
+        批量创建结果，包含所有设备的创建状态
+    """
+    url = "https://iot-api.quectelcn.com/v2/devicemgr/r3/openapi/device/createBatch"
+    
+    payload = {
+        "productKey": product_key,
+        "devices": devices
+    }
+    
+    headers = {
+        "Authorization": token,
+        "Content-Type": "application/json"
+    }
+    
+    response = requests.post(url, json=payload, headers=headers)
+    response.raise_for_status()
+    
+    return response.json()
+
+# 批量创建设备
+device_list = [
+    {"deviceName": "传感器-1楼-A区-001"},
+    {"deviceName": "传感器-1楼-A区-002"},
+    {"deviceName": "传感器-1楼-A区-003"},
+    {
+        "deviceName": "传感器-1楼-A区-004",
+        "deviceSN": "SN202312004",
+        "authMode": 1
+    }
+]
+
+batch_result = create_devices_batch(token, "p12345", device_list)
+print(f"批量创建了 {len(batch_result['data'])} 个设备")
+
+# 处理创建结果
+for i, device in enumerate(batch_result['data']):
+    if 'deviceKey' in device:
+        print(f"设备 {i + 1}: {device['deviceName']} - {device['deviceKey']}")
+    else:
+        print(f"设备 {i + 1} 创建失败:", device.get('error', '未知错误'))
+```
+
+</CodeGroup>
+
+### 批量响应示例
+
+```json
+{
+  "code": 200,
+  "msg": "OK",
+  "data": [
+    {
+      "deviceKey": "d67890abcdef",
+      "deviceSecret": "a1b2c3d4e5f6789012345678",
+      "deviceName": "传感器-1楼-A区-001"
+    },
+    {
+      "deviceKey": "d67891abcdef",
+      "deviceSecret": "a1b2c3d4e5f6789012345679",
+      "deviceName": "传感器-1楼-A区-002"
+    },
+    {
+      "error": "设备名称已存在",
+      "deviceName": "传感器-1楼-A区-003"
+    }
+  ]
+}
+```
+
+## 最佳实践
+
+<CardGroup cols={2}>
+  <Card title="设备命名" icon="tag">
+    使用包含位置、类型和用途的一致命名约定
+  </Card>
+  <Card title="批量操作" icon="layer-group">
+    对多个设备使用批量API以提高性能
+  </Card>
+  <Card title="认证方式选择" icon="shield">
+    根据安全需求选择合适的认证方式
+  </Card>
+  <Card title="错误处理" icon="exclamation-triangle">
+    始终检查创建结果并处理部分失败情况
+  </Card>
+</CardGroup>
+
+## 错误处理
+
+| 错误码 | 描述 | 解决方案 |
+|--------|------|----------|
+| 50006 | ProductKey为空 | 提供有效的productKey参数 |
+| 50008 | DeviceName为空 | 提供有效的deviceName参数 |
+| 70017 | 产品不存在 | 验证产品存在且可访问 |
+| 70019 | 设备已存在 | 使用不同的deviceKey或deviceName |
+| 70089 | 权限受限 | 检查SaaS应用设备创建权限 |
+
+## 使用场景
+
+<AccordionGroup>
+  <Accordion title="单设备部署">
+    适用于测试环境或小规模部署，创建个别设备进行验证。
+  </Accordion>
+  
+  <Accordion title="批量设备部署">
+    适用于大规模部署，一次性创建多个设备以提高效率。
+  </Accordion>
+  
+  <Accordion title="不同认证需求">
+    根据安全要求选择动态认证、静态认证或X509证书认证。
+  </Accordion>
+  
+  <Accordion title="设备迁移">
+    从其他平台迁移设备时保持原有的deviceKey和认证信息。
+  </Accordion>
+</AccordionGroup>

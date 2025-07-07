@@ -1,0 +1,353 @@
+---
+title: '批量添加设备'
+openapi: 'POST /v2/devicemgr/r3/openapi/device/createBatch'
+---
+
+## 批量创建概述
+
+一次性创建多个IoT设备，适用于大规模设备部署场景。支持自动生成设备密钥或使用预定义密钥，提高设备注册效率。
+
+## 批量操作优势
+
+<CardGroup cols={3}>
+  <Card title="效率提升" icon="rocket">
+    单次请求创建多个设备，减少网络开销
+  </Card>
+  <Card title="事务保证" icon="shield-check">
+    批量操作具有事务性，要么全部成功要么全部失败
+  </Card>
+  <Card title="批量配置" icon="cogs">
+    统一设置设备属性和配置参数
+  </Card>
+</CardGroup>
+
+## 创建策略
+
+<Tabs>
+  <Tab title="自动生成密钥">
+    系统自动为每个设备生成唯一的DeviceKey和DeviceSecret
+    - 保证密钥的唯一性和安全性
+    - 符合平台标准的密钥格式
+    - 无需预先准备设备密钥
+  </Tab>
+  
+  <Tab title="预定义密钥">
+    使用预先准备的设备密钥列表
+    - 支持自定义设备标识符
+    - 便于与现有系统集成
+    - 需要确保密钥的唯一性
+  </Tab>
+  
+  <Tab title="混合模式">
+    部分设备使用预定义密钥，部分自动生成
+    - 灵活适应不同设备类型
+    - 支持渐进式迁移场景
+    - 提供最大的配置灵活性
+  </Tab>
+</Tabs>
+
+## 代码示例
+
+<CodeGroup>
+
+```javascript JavaScript
+async function createDevicesBatch(token, productKey, devices) {
+  const response = await fetch(
+    'https://iot-api.quectelcn.com/v2/devicemgr/r3/openapi/device/createBatch',
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': token,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        productKey,
+        devices
+      })
+    }
+  );
+  
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  }
+  
+  return await response.json();
+}
+
+// 批量创建设备（自动生成密钥）
+const devicesWithAutoKeys = [
+  { deviceName: '温度传感器-001' },
+  { deviceName: '温度传感器-002' },
+  { deviceName: '温度传感器-003' },
+  { deviceName: '温度传感器-004' },
+  { deviceName: '温度传感器-005' }
+];
+
+// 批量创建设备（预定义密钥）
+const devicesWithCustomKeys = [
+  { 
+    deviceName: '湿度传感器-001',
+    deviceKey: 'humidity_sensor_001',
+    deviceSecret: 'custom_secret_001'
+  },
+  { 
+    deviceName: '湿度传感器-002',
+    deviceKey: 'humidity_sensor_002',
+    deviceSecret: 'custom_secret_002'
+  }
+];
+
+// 执行批量创建
+try {
+  const result1 = await createDevicesBatch(token, 'p12345', devicesWithAutoKeys);
+  console.log('自动密钥批量创建结果:', result1.data);
+  
+  const result2 = await createDevicesBatch(token, 'p12345', devicesWithCustomKeys);
+  console.log('自定义密钥批量创建结果:', result2.data);
+  
+  // 保存设备密钥信息
+  result1.data.forEach(device => {
+    console.log(`设备: ${device.deviceName}, DK: ${device.deviceKey}, DS: ${device.deviceSecret}`);
+  });
+} catch (error) {
+  console.error('批量创建失败:', error.message);
+}
+```
+
+```python Python
+import requests
+import json
+
+def create_devices_batch(token, product_key, devices):
+    """
+    批量创建设备
+    
+    Args:
+        token: JWT认证令牌
+        product_key: 产品PK
+        devices: 设备列表
+        
+    Returns:
+        批量创建结果
+    """
+    url = "https://iot-api.quectelcn.com/v2/devicemgr/r3/openapi/device/createBatch"
+    
+    payload = {
+        "productKey": product_key,
+        "devices": devices
+    }
+    
+    headers = {
+        "Authorization": token,
+        "Content-Type": "application/json"
+    }
+    
+    response = requests.post(url, json=payload, headers=headers)
+    response.raise_for_status()
+    
+    return response.json()
+
+# 准备设备数据
+devices_auto_keys = [
+    {"deviceName": f"智能传感器-{i:03d}"} 
+    for i in range(1, 51)  # 创建50个设备
+]
+
+devices_custom_keys = [
+    {
+        "deviceName": f"工业传感器-{i:03d}",
+        "deviceKey": f"industrial_sensor_{i:03d}",
+        "deviceSecret": f"secret_{i:03d}"
+    }
+    for i in range(1, 11)  # 创建10个设备
+]
+
+# 批量创建设备
+try:
+    # 自动生成密钥的批量创建
+    result_auto = create_devices_batch(token, "p12345", devices_auto_keys)
+    print(f"自动密钥创建成功: {len(result_auto['data'])} 个设备")
+    
+    # 自定义密钥的批量创建
+    result_custom = create_devices_batch(token, "p12345", devices_custom_keys)
+    print(f"自定义密钥创建成功: {len(result_custom['data'])} 个设备")
+    
+    # 导出设备信息到CSV
+    import csv
+    with open('devices_created.csv', 'w', newline='', encoding='utf-8') as csvfile:
+        fieldnames = ['deviceName', 'deviceKey', 'deviceSecret']
+        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+        writer.writeheader()
+        
+        for device in result_auto['data'] + result_custom['data']:
+            writer.writerow(device)
+    
+    print("设备信息已导出到 devices_created.csv")
+    
+except requests.exceptions.RequestException as e:
+    print(f"批量创建失败: {e}")
+```
+
+```curl cURL
+# 批量创建设备（自动生成密钥）
+curl -X POST "https://iot-api.quectelcn.com/v2/devicemgr/r3/openapi/device/createBatch" \
+  -H "Authorization: YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "productKey": "p12345",
+    "devices": [
+      {"deviceName": "传感器-001"},
+      {"deviceName": "传感器-002"},
+      {"deviceName": "传感器-003"}
+    ]
+  }'
+
+# 批量创建设备（预定义密钥）
+curl -X POST "https://iot-api.quectelcn.com/v2/devicemgr/r3/openapi/device/createBatch" \
+  -H "Authorization: YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "productKey": "p12345",
+    "devices": [
+      {
+        "deviceName": "工业传感器-001",
+        "deviceKey": "industrial_001",
+        "deviceSecret": "secret_001"
+      },
+      {
+        "deviceName": "工业传感器-002",
+        "deviceKey": "industrial_002",
+        "deviceSecret": "secret_002"
+      }
+    ]
+  }'
+```
+
+</CodeGroup>
+
+## 响应示例
+
+```json
+{
+  "code": 200,
+  "msg": "OK",
+  "data": [
+    {
+      "deviceName": "传感器-001",
+      "deviceKey": "d_auto_generated_001",
+      "deviceSecret": "ds_auto_generated_001",
+      "createTime": "2023-12-15T14:30:25Z",
+      "status": "SUCCESS"
+    },
+    {
+      "deviceName": "传感器-002", 
+      "deviceKey": "d_auto_generated_002",
+      "deviceSecret": "ds_auto_generated_002",
+      "createTime": "2023-12-15T14:30:25Z",
+      "status": "SUCCESS"
+    },
+    {
+      "deviceName": "传感器-003",
+      "deviceKey": "d_auto_generated_003",
+      "deviceSecret": "ds_auto_generated_003",
+      "createTime": "2023-12-15T14:30:25Z",
+      "status": "SUCCESS"
+    }
+  ],
+  "summary": {
+    "totalRequested": 3,
+    "successCount": 3,
+    "failureCount": 0
+  }
+}
+```
+
+## 批量处理限制
+
+<Info>
+**批量大小限制**: 单次批量操作最多支持100个设备，建议每批50个设备以获得最佳性能。
+</Info>
+
+<Warning>
+**事务性保证**: 批量操作具有事务性，如果任何一个设备创建失败，整个批次都会回滚。
+</Warning>
+
+## 设备命名规范
+
+<AccordionGroup>
+  <Accordion title="命名规则">
+    - 设备名称长度：1-64个字符
+    - 支持中文、英文、数字、下划线、连字符
+    - 同一产品下设备名称必须唯一
+    - 建议使用有意义的命名规则，便于管理
+  </Accordion>
+  
+  <Accordion title="推荐命名模式">
+    **按位置命名**: `楼宇A-3楼-会议室1-温度传感器`
+    **按序列号命名**: `温度传感器-TH001`, `温度传感器-TH002`
+    **按功能命名**: `车间温度监测-01`, `仓库湿度监测-02`
+    **按时间命名**: `传感器-20231215-001`
+  </Accordion>
+  
+  <Accordion title="设备密钥规范">
+    **DeviceKey规则**:
+    - 长度：4-32个字符
+    - 只能包含字母、数字、下划线
+    - 必须以字母开头
+    - 产品范围内唯一
+    
+    **DeviceSecret规则**:
+    - 长度：16-128个字符
+    - 包含字母、数字、特殊字符
+    - 建议使用强随机生成
+    - 妥善保管，避免泄露
+  </Accordion>
+</AccordionGroup>
+
+## 错误处理
+
+| 错误码 | 说明 | 解决方案 |
+|---------|------|----------|
+| 50006 | ProductKey为空 | 提供有效的productKey参数 |
+| 50007 | 设备列表为空 | 确保devices数组不为空 |
+| 50008 | 设备名称重复 | 检查批次内和产品内的设备名称唯一性 |
+| 50009 | 设备密钥重复 | 检查DeviceKey的唯一性 |
+| 70017 | 产品不存在 | 验证产品存在且状态正常 |
+| 70018 | 设备配额不足 | 检查产品的设备配额限制 |
+| 70089 | 权限受限 | 检查SaaS应用的设备创建权限 |
+
+## 最佳实践
+
+<CardGroup cols={2}>
+  <Card title="批量大小控制" icon="resize">
+    单批次建议50个设备，避免单次处理过多导致超时
+  </Card>
+  <Card title="错误重试机制" icon="rotate-right">
+    实现指数退避重试，处理网络临时故障
+  </Card>
+  <Card title="进度跟踪" icon="chart-line">
+    显示批量创建进度，提升用户体验
+  </Card>
+  <Card title="密钥安全存储" icon="lock">
+    安全存储设备密钥，建议使用加密方式
+  </Card>
+</CardGroup>
+
+## 设备激活
+
+创建设备后，设备状态为`UNACTIVE`（未激活）。设备首次连接到平台后会自动激活，状态变为`OFFLINE`或`ONLINE`。
+
+```javascript
+// 检查设备激活状态
+async function checkDeviceStatus(token, productKey, deviceKey) {
+  const devices = await getDeviceList(token, productKey);
+  const device = devices.data.find(d => d.deviceKey === deviceKey);
+  
+  if (device) {
+    console.log(`设备 ${deviceKey} 状态: ${device.status}`);
+    return device.status;
+  }
+  
+  return null;
+}
+```

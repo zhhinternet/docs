@@ -1,0 +1,943 @@
+---
+title: '查询设备历史事件'
+openapi: 'GET /v2/quecdatastorage/r1/openapi/device/eventdata/history'
+---
+
+## 查询设备历史事件
+
+获取设备生命周期事件、系统通知和告警记录的历史信息。事件数据对于故障诊断、性能监控、安全审计和业务分析具有重要价值。
+
+## 事件分类
+
+<CardGroup cols={3}>
+  <Card title="状态事件" icon="power-off">
+    设备上线、离线、激活等状态变更事件
+  </Card>
+  <Card title="告警事件" icon="exclamation-triangle">
+    设备故障、异常值、阈值超限等告警
+  </Card>
+  <Card title="系统事件" icon="cog">
+    固件更新、配置变更、命令响应等系统事件
+  </Card>
+</CardGroup>
+
+## 事件严重程度
+
+<Tabs>
+  <Tab title="INFO">
+    **信息级事件**: 正常的设备状态变更和操作记录
+    - 设备上线/离线
+    - 数据上报
+    - 配置更新完成
+  </Tab>
+  
+  <Tab title="WARNING">
+    **警告级事件**: 需要关注但不影响正常运行的事件
+    - 信号强度弱
+    - 数据传输延迟
+    - 非关键参数超限
+  </Tab>
+  
+  <Tab title="ERROR">
+    **错误级事件**: 影响设备正常运行的严重问题
+    - 硬件故障
+    - 通信中断
+    - 关键传感器失效
+  </Tab>
+</Tabs>
+
+## 数据保留策略
+
+<Info>
+**事件保留期**: 历史事件数据保留365天，为长期分析和合规审计提供充足的数据支持。
+</Info>
+
+## 接口地址
+
+`GET /v2/quecdatastorage/r1/openapi/device/eventdata/history`
+
+## 请求参数
+
+| 参数名 | 类型 | 必填 | 说明 |
+|--------|------|------|------|
+| productKey | String | 是 | 产品PK |
+| deviceKey | String | 是 | 设备DK |
+| startTime | String | 是 | 开始时间(ISO 8601格式) |
+| endTime | String | 是 | 结束时间(ISO 8601格式) |
+| pageNum | Integer | 否 | 分页码(默认:1) |
+| pageSize | Integer | 否 | 分页，每页大小(默认:20，最大:100) |
+| eventType | String | 否 | 事件类型过滤 |
+
+## 代码示例
+
+<CodeGroup>
+
+```javascript JavaScript
+async function getDeviceEventHistory(token, query) {
+  const {
+    productKey,
+    deviceKey,
+    startTime,
+    endTime,
+    pageNum = 1,
+    pageSize = 20,
+    eventType // 可选事件类型过滤
+  } = query;
+  
+  const params = new URLSearchParams({
+    productKey,
+    deviceKey,
+    startTime,
+    endTime,
+    pageNum: pageNum.toString(),
+    pageSize: pageSize.toString()
+  });
+  
+  if (eventType) {
+    params.append('eventType', eventType);
+  }
+  
+  const response = await fetch(
+    `https://iot-api.quectelcn.com/v2/quecdatastorage/r1/openapi/device/eventdata/history?${params}`,
+    {
+      headers: {
+        'Authorization': token,
+        'Content-Type': 'application/json'
+      }
+    }
+  );
+  
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  }
+  
+  return await response.json();
+}
+
+// 查询最近24小时的设备事件
+const eventHistory = await getDeviceEventHistory(token, {
+  productKey: 'p12345',
+  deviceKey: 'd67890',
+  startTime: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+  endTime: new Date().toISOString(),
+  pageSize: 50
+});
+
+console.log(`找到 ${eventHistory.total} 个事件`);
+eventHistory.data.forEach(event => {
+  console.log(`${event.timestamp}: ${event.eventType} - ${JSON.stringify(event.eventData)}`);
+});
+
+// 查询特定类型的事件
+const onlineEvents = await getDeviceEventHistory(token, {
+  productKey: 'p12345',
+  deviceKey: 'd67890',
+  startTime: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+  endTime: new Date().toISOString(),
+  eventType: 'DEVICE_ONLINE',
+  pageSize: 100
+});
+
+// 分析设备在线时间
+function calculateUptime(onlineEvents, offlineEvents) {
+  if (onlineEvents.length === 0) return 0;
+  
+  const events = [...onlineEvents, ...offlineEvents]
+    .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+  
+  let totalUptime = 0;
+  let lastOnlineTime = null;
+  
+  events.forEach(event => {
+    if (event.eventType === 'DEVICE_ONLINE') {
+      lastOnlineTime = new Date(event.timestamp);
+    } else if (event.eventType === 'DEVICE_OFFLINE' && lastOnlineTime) {
+      totalUptime += new Date(event.timestamp) - lastOnlineTime;
+      lastOnlineTime = null;
+    }
+  });
+  
+  // 如果设备仍在线，计算到当前时间
+  if (lastOnlineTime) {
+    totalUptime += new Date() - lastOnlineTime;
+  }
+  
+  return totalUptime;
+}
+
+// 事件分析器
+class DeviceEventAnalyzer {
+  constructor(token) {
+    this.token = token;
+  }
+  
+  async getErrorEvents(productKey, deviceKey, days = 7) {
+    const endTime = new Date().toISOString();
+    const startTime = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+    
+    const events = await getDeviceEventHistory(this.token, {
+      productKey,
+      deviceKey,
+      startTime,
+      endTime,
+      pageSize: 100
+    });
+    
+    return events.data.filter(event => event.severity === 'ERROR');
+  }
+  
+  async analyzeEventPattern(productKey, deviceKey, days = 30) {
+    const endTime = new Date().toISOString();
+    const startTime = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+    
+    const events = await this.getAllEvents(productKey, deviceKey, startTime, endTime);
+    
+    const eventCounts = {};
+    const severityCounts = { INFO: 0, WARNING: 0, ERROR: 0 };
+    const hourlyDistribution = new Array(24).fill(0);
+    
+    events.forEach(event => {
+      // 统计事件类型
+      eventCounts[event.eventType] = (eventCounts[event.eventType] || 0) + 1;
+      
+      // 统计严重程度
+      severityCounts[event.severity]++;
+      
+      // 统计小时分布
+      const hour = new Date(event.timestamp).getHours();
+      hourlyDistribution[hour]++;
+    });
+    
+    return {
+      totalEvents: events.length,
+      eventTypes: eventCounts,
+      severityDistribution: severityCounts,
+      hourlyPattern: hourlyDistribution,
+      errorRate: severityCounts.ERROR / events.length,
+      mostActiveHour: hourlyDistribution.indexOf(Math.max(...hourlyDistribution))
+    };
+  }
+  
+  async getAllEvents(productKey, deviceKey, startTime, endTime) {
+    let allEvents = [];
+    let currentPage = 1;
+    let totalPages = 1;
+    const pageSize = 100;
+    
+    do {
+      const response = await getDeviceEventHistory(this.token, {
+        productKey,
+        deviceKey,
+        startTime,
+        endTime,
+        pageNum: currentPage,
+        pageSize
+      });
+      
+      allEvents = allEvents.concat(response.data);
+      totalPages = response.pages;
+      currentPage++;
+    } while (currentPage <= totalPages);
+    
+    return allEvents;
+  }
+  
+  async detectAnomalousEvents(productKey, deviceKey, days = 7) {
+    const events = await this.getAllEvents(
+      productKey, 
+      deviceKey,
+      new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString(),
+      new Date().toISOString()
+    );
+    
+    // 检测频繁的错误事件
+    const errorEvents = events.filter(e => e.severity === 'ERROR');
+    const recentErrors = errorEvents.filter(e => 
+      new Date() - new Date(e.timestamp) < 60 * 60 * 1000 // 最近1小时
+    );
+    
+    // 检测异常的事件模式
+    const eventTypeFreq = {};
+    events.forEach(event => {
+      eventTypeFreq[event.eventType] = (eventTypeFreq[event.eventType] || 0) + 1;
+    });
+    
+    const averageFreq = Object.values(eventTypeFreq).reduce((sum, freq) => sum + freq, 0) / Object.keys(eventTypeFreq).length;
+    const anomalousTypes = Object.entries(eventTypeFreq)
+      .filter(([type, freq]) => freq > averageFreq * 3)
+      .map(([type, freq]) => ({ type, frequency: freq, anomalyScore: freq / averageFreq }));
+    
+    return {
+      recentErrorCount: recentErrors.length,
+      isErrorSpike: recentErrors.length > 5,
+      anomalousEventTypes: anomalousTypes,
+      recommendations: this.generateRecommendations(recentErrors, anomalousTypes)
+    };
+  }
+  
+  generateRecommendations(recentErrors, anomalousTypes) {
+    const recommendations = [];
+    
+    if (recentErrors.length > 5) {
+      recommendations.push('设备出现频繁错误，建议立即检查设备状态');
+    }
+    
+    if (anomalousTypes.length > 0) {
+      recommendations.push(`检测到异常频繁的事件类型: ${anomalousTypes.map(t => t.type).join(', ')}`);
+    }
+    
+    return recommendations;
+  }
+}
+
+// 使用事件分析器
+const analyzer = new DeviceEventAnalyzer(token);
+
+// 分析设备事件模式
+const eventPattern = await analyzer.analyzeEventPattern('p12345', 'd67890', 30);
+console.log('事件模式分析:', eventPattern);
+
+// 检测异常事件
+const anomalies = await analyzer.detectAnomalousEvents('p12345', 'd67890', 7);
+if (anomalies.isErrorSpike) {
+  console.log('警告: 检测到设备错误激增!');
+  anomalies.recommendations.forEach(rec => console.log(`建议: ${rec}`));
+}
+```
+
+```python Python
+import requests
+from datetime import datetime, timedelta
+from collections import defaultdict
+
+def get_device_event_history(token, query):
+    """
+    查询设备历史事件数据
+    
+    Args:
+        token: JWT认证token
+        query: 包含查询参数的字典
+    
+    Returns:
+        包含分页信息的历史事件记录
+    """
+    url = "https://iot-api.quectelcn.com/v2/quecdatastorage/r1/openapi/device/eventdata/history"
+    
+    params = {
+        "productKey": query["productKey"],
+        "deviceKey": query["deviceKey"],
+        "startTime": query["startTime"],
+        "endTime": query["endTime"],
+        "pageNum": query.get("pageNum", 1),
+        "pageSize": query.get("pageSize", 20)
+    }
+    
+    # 添加可选事件类型过滤
+    if "eventType" in query:
+        params["eventType"] = query["eventType"]
+    
+    headers = {
+        "Authorization": token,
+        "Content-Type": "application/json"
+    }
+    
+    response = requests.get(url, params=params, headers=headers)
+    response.raise_for_status()
+    
+    return response.json()
+
+# 查询最近24小时的设备事件
+query = {
+    "productKey": "p12345",
+    "deviceKey": "d67890",
+    "startTime": (datetime.now() - timedelta(hours=24)).isoformat(),
+    "endTime": datetime.now().isoformat(),
+    "pageSize": 50
+}
+
+event_history = get_device_event_history(token, query)
+print(f"找到 {event_history['total']} 个事件")
+
+for event in event_history['data']:
+    print(f"{event['timestamp']}: {event['eventType']} - {event['eventData']}")
+
+# 设备事件分析器类
+class DeviceEventAnalyzer:
+    def __init__(self, token):
+        self.token = token
+    
+    def get_events_by_severity(self, product_key, device_key, severity, days=7):
+        """获取指定严重程度的事件"""
+        end_time = datetime.now().isoformat()
+        start_time = (datetime.now() - timedelta(days=days)).isoformat()
+        
+        all_events = self.get_all_events(product_key, device_key, start_time, end_time)
+        return [event for event in all_events if event['severity'] == severity]
+    
+    def get_events_by_type(self, product_key, device_key, event_type, days=7):
+        """获取指定类型的事件"""
+        end_time = datetime.now().isoformat()
+        start_time = (datetime.now() - timedelta(days=days)).isoformat()
+        
+        query = {
+            "productKey": product_key,
+            "deviceKey": device_key,
+            "startTime": start_time,
+            "endTime": end_time,
+            "eventType": event_type,
+            "pageSize": 100
+        }
+        
+        return get_device_event_history(self.token, query)
+    
+    def analyze_uptime(self, product_key, device_key, days=7):
+        """分析设备在线时间"""
+        end_time = datetime.now().isoformat()
+        start_time = (datetime.now() - timedelta(days=days)).isoformat()
+        
+        all_events = self.get_all_events(product_key, device_key, start_time, end_time)
+        
+        online_events = [e for e in all_events if e['eventType'] == 'DEVICE_ONLINE']
+        offline_events = [e for e in all_events if e['eventType'] == 'DEVICE_OFFLINE']
+        
+        # 合并并排序事件
+        status_events = online_events + offline_events
+        status_events.sort(key=lambda x: x['timestamp'])
+        
+        total_uptime = timedelta()
+        last_online_time = None
+        
+        for event in status_events:
+            event_time = datetime.fromisoformat(event['timestamp'].replace('Z', '+00:00'))
+            
+            if event['eventType'] == 'DEVICE_ONLINE':
+                last_online_time = event_time
+            elif event['eventType'] == 'DEVICE_OFFLINE' and last_online_time:
+                total_uptime += event_time - last_online_time
+                last_online_time = None
+        
+        # 如果设备仍在线，计算到当前时间
+        if last_online_time:
+            total_uptime += datetime.now().replace(tzinfo=last_online_time.tzinfo) - last_online_time
+        
+        total_period = timedelta(days=days)
+        uptime_percentage = (total_uptime.total_seconds() / total_period.total_seconds()) * 100
+        
+        return {
+            "total_uptime_hours": total_uptime.total_seconds() / 3600,
+            "uptime_percentage": uptime_percentage,
+            "online_sessions": len(online_events),
+            "offline_sessions": len(offline_events),
+            "average_session_duration": total_uptime.total_seconds() / 3600 / max(len(online_events), 1)
+        }
+    
+    def detect_event_anomalies(self, product_key, device_key, days=7):
+        """检测事件异常"""
+        all_events = self.get_all_events(
+            product_key, 
+            device_key,
+            (datetime.now() - timedelta(days=days)).isoformat(),
+            datetime.now().isoformat()
+        )
+        
+        # 统计事件类型分布
+        event_counts = defaultdict(int)
+        severity_counts = defaultdict(int)
+        hourly_distribution = defaultdict(int)
+        
+        for event in all_events:
+            event_counts[event['eventType']] += 1
+            severity_counts[event['severity']] += 1
+            
+            event_time = datetime.fromisoformat(event['timestamp'].replace('Z', '+00:00'))
+            hourly_distribution[event_time.hour] += 1
+        
+        # 检测异常
+        total_events = len(all_events)
+        error_rate = severity_counts['ERROR'] / total_events if total_events > 0 else 0
+        
+        # 检测最近1小时的错误激增
+        recent_errors = [
+            event for event in all_events 
+            if event['severity'] == 'ERROR' and 
+            datetime.now().replace(tzinfo=datetime.fromisoformat(event['timestamp'].replace('Z', '+00:00')).tzinfo) - 
+            datetime.fromisoformat(event['timestamp'].replace('Z', '+00:00')) < timedelta(hours=1)
+        ]
+        
+        # 找出异常频繁的事件类型
+        avg_frequency = sum(event_counts.values()) / len(event_counts) if event_counts else 0
+        anomalous_types = [
+            (event_type, count) for event_type, count in event_counts.items() 
+            if count > avg_frequency * 2
+        ]
+        
+        return {
+            "total_events": total_events,
+            "error_rate": error_rate,
+            "recent_error_count": len(recent_errors),
+            "is_error_spike": len(recent_errors) > 3,
+            "event_type_distribution": dict(event_counts),
+            "severity_distribution": dict(severity_counts),
+            "anomalous_event_types": anomalous_types,
+            "recommendations": self._generate_recommendations(error_rate, len(recent_errors), anomalous_types)
+        }
+    
+    def _generate_recommendations(self, error_rate, recent_error_count, anomalous_types):
+        """生成改进建议"""
+        recommendations = []
+        
+        if error_rate > 0.1:  # 错误率超过10%
+            recommendations.append("设备错误率过高，建议检查设备硬件和网络连接")
+        
+        if recent_error_count > 3:
+            recommendations.append("最近1小时内错误频发，建议立即查看设备状态")
+        
+        if anomalous_types:
+            type_names = [t[0] for t in anomalous_types]
+            recommendations.append(f"检测到异常频繁的事件类型: {', '.join(type_names)}")
+        
+        if not recommendations:
+            recommendations.append("设备事件模式正常")
+        
+        return recommendations
+    
+    def get_all_events(self, product_key, device_key, start_time, end_time):
+        """获取所有事件（处理分页）"""
+        all_events = []
+        current_page = 1
+        page_size = 100
+        
+        while True:
+            query = {
+                "productKey": product_key,
+                "deviceKey": device_key,
+                "startTime": start_time,
+                "endTime": end_time,
+                "pageNum": current_page,
+                "pageSize": page_size
+            }
+            
+            response = get_device_event_history(self.token, query)
+            all_events.extend(response['data'])
+            
+            if current_page >= response['pages']:
+                break
+            current_page += 1
+        
+        return all_events
+    
+    def generate_event_report(self, product_key, device_key, days=30):
+        """生成事件分析报告"""
+        uptime_analysis = self.analyze_uptime(product_key, device_key, days)
+        anomaly_analysis = self.detect_event_anomalies(product_key, device_key, days)
+        error_events = self.get_events_by_severity(product_key, device_key, 'ERROR', days)
+        
+        return {
+            "device_key": device_key,
+            "analysis_period_days": days,
+            "uptime_analysis": uptime_analysis,
+            "anomaly_analysis": anomaly_analysis,
+            "critical_errors": len(error_events),
+            "summary": {
+                "device_health": "良好" if uptime_analysis['uptime_percentage'] > 95 and anomaly_analysis['error_rate'] < 0.05 else "需要关注",
+                "uptime_status": "优秀" if uptime_analysis['uptime_percentage'] > 99 else "良好" if uptime_analysis['uptime_percentage'] > 95 else "需要改善",
+                "error_status": "正常" if anomaly_analysis['error_rate'] < 0.05 else "偏高"
+            }
+        }
+
+# 使用事件分析器
+analyzer = DeviceEventAnalyzer(token)
+
+# 分析设备在线时间
+uptime_stats = analyzer.analyze_uptime("p12345", "d67890", days=7)
+print(f"设备在线率: {uptime_stats['uptime_percentage']:.2f}%")
+print(f"平均会话时长: {uptime_stats['average_session_duration']:.2f} 小时")
+
+# 检测事件异常
+anomalies = analyzer.detect_event_anomalies("p12345", "d67890", days=7)
+print(f"错误率: {anomalies['error_rate']:.2%}")
+if anomalies['is_error_spike']:
+    print("警告: 检测到错误事件激增!")
+
+for recommendation in anomalies['recommendations']:
+    print(f"建议: {recommendation}")
+
+# 生成完整报告
+report = analyzer.generate_event_report("p12345", "d67890", days=30)
+print(f"设备健康状态: {report['summary']['device_health']}")
+print(f"在线时间状态: {report['summary']['uptime_status']}")
+print(f"错误状态: {report['summary']['error_status']}")
+```
+
+```curl cURL
+# 查询设备事件历史
+curl -X GET "https://iot-api.quectelcn.com/v2/quecdatastorage/r1/openapi/device/eventdata/history?productKey=p12345&deviceKey=d67890&startTime=2023-12-14T14:30:25Z&endTime=2023-12-15T14:30:25Z&pageNum=1&pageSize=50" \
+  -H "Authorization: YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json"
+
+# 查询特定事件类型
+curl -X GET "https://iot-api.quectelcn.com/v2/quecdatastorage/r1/openapi/device/eventdata/history?productKey=p12345&deviceKey=d67890&startTime=2023-12-14T14:30:25Z&endTime=2023-12-15T14:30:25Z&eventType=DEVICE_ONLINE&pageSize=100" \
+  -H "Authorization: YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json"
+
+# 查询错误级别事件
+curl -X GET "https://iot-api.quectelcn.com/v2/quecdatastorage/r1/openapi/device/eventdata/history?productKey=p12345&deviceKey=d67890&startTime=2023-12-01T00:00:00Z&endTime=2023-12-15T23:59:59Z&pageSize=100" \
+  -H "Authorization: YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json"
+
+# 查询最近一周的告警事件
+curl -X GET "https://iot-api.quectelcn.com/v2/quecdatastorage/r1/openapi/device/eventdata/history?productKey=p12345&deviceKey=d67890&startTime=2023-12-08T00:00:00Z&endTime=2023-12-15T23:59:59Z&eventType=TEMPERATURE_ALERT&pageSize=50" \
+  -H "Authorization: YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json"
+```
+
+</CodeGroup>
+
+## 响应示例
+
+### 成功响应
+
+```json
+{
+  "code": 200,
+  "msg": "OK",
+  "data": [
+    {
+      "messageId": "evt_1234567890abcdef",
+      "timestamp": "2023-12-15T14:30:25.123Z",
+      "eventType": "DEVICE_ONLINE",
+      "severity": "INFO",
+      "eventData": {
+        "previousStatus": "OFFLINE",
+        "currentStatus": "ONLINE",
+        "connectionType": "CELLULAR",
+        "signalStrength": -65,
+        "reconnectReason": "SCHEDULED_RECONNECT"
+      },
+      "metadata": {
+        "source": "device_manager",
+        "correlationId": "conn_12345",
+        "deviceLocation": "Building-A-Floor-3"
+      }
+    },
+    {
+      "messageId": "evt_1234567890abcdf0",
+      "timestamp": "2023-12-15T14:15:30.789Z",
+      "eventType": "TEMPERATURE_ALERT",
+      "severity": "WARNING",
+      "eventData": {
+        "temperature": 35.2,
+        "threshold": 30.0,
+        "alertType": "HIGH_TEMPERATURE",
+        "sensorId": "temp_sensor_01",
+        "duration": 120
+      },
+      "metadata": {
+        "source": "rule_engine",
+        "ruleId": "rule_temp_123",
+        "alertLevel": "MEDIUM"
+      }
+    },
+    {
+      "messageId": "evt_1234567890abcdf1",
+      "timestamp": "2023-12-15T13:45:15.456Z",
+      "eventType": "FIRMWARE_UPDATE_COMPLETE",
+      "severity": "INFO",
+      "eventData": {
+        "previousVersion": "1.2.3",
+        "currentVersion": "1.2.4",
+        "updateResult": "SUCCESS",
+        "updateDuration": 180
+      },
+      "metadata": {
+        "source": "ota_manager",
+        "updateId": "ota_update_789"
+      }
+    }
+  ],
+  "pageNum": 1,
+  "pageSize": 20,
+  "total": 342,
+  "pages": 18
+}
+```
+
+### 无事件响应
+
+```json
+{
+  "code": 200,
+  "msg": "OK",
+  "data": [],
+  "pageNum": 1,
+  "pageSize": 20,
+  "total": 0,
+  "pages": 0
+}
+```
+
+## 事件记录字段说明
+
+| 字段名 | 类型 | 说明 |
+|--------|------|------|
+| messageId | String | 事件消息唯一标识符 |
+| timestamp | String | 事件发生时间(ISO 8601格式) |
+| eventType | String | 事件类型标识 |
+| severity | String | 事件严重程度：INFO、WARNING、ERROR |
+| eventData | Object | 事件具体数据内容 |
+| metadata | Object | 事件元数据和上下文信息 |
+
+## 常见事件类型
+
+| 事件类型 | 描述 | 严重程度 |
+|---------|------|----------|
+| DEVICE_ONLINE | 设备上线连接到平台 | INFO |
+| DEVICE_OFFLINE | 设备离线断开连接 | WARNING |
+| TEMPERATURE_ALERT | 温度超出阈值告警 | WARNING/ERROR |
+| BATTERY_LOW | 设备电量不足告警 | WARNING |
+| SENSOR_FAILURE | 传感器故障 | ERROR |
+| FIRMWARE_UPDATE_COMPLETE | 固件更新完成 | INFO |
+| CONFIGURATION_CHANGED | 设备配置变更 | INFO |
+| COMMUNICATION_ERROR | 通信错误 | ERROR |
+
+## 事件分析应用
+
+<Tabs>
+  <Tab title="设备健康监控">
+    ```javascript
+    // 计算设备健康分数
+    function calculateDeviceHealthScore(events) {
+      const totalEvents = events.length;
+      if (totalEvents === 0) return 100;
+      
+      const errorEvents = events.filter(e => e.severity === 'ERROR').length;
+      const warningEvents = events.filter(e => e.severity === 'WARNING').length;
+      
+      // 基础分数100，根据错误和警告扣分
+      let healthScore = 100;
+      healthScore -= (errorEvents / totalEvents) * 50; // 错误事件最多扣50分
+      healthScore -= (warningEvents / totalEvents) * 20; // 警告事件最多扣20分
+      
+      return Math.max(0, Math.round(healthScore));
+    }
+    
+    // 设备可靠性分析
+    function analyzeDeviceReliability(events, periodHours = 24) {
+      const onlineEvents = events.filter(e => e.eventType === 'DEVICE_ONLINE');
+      const offlineEvents = events.filter(e => e.eventType === 'DEVICE_OFFLINE');
+      
+      return {
+        connectivity: {
+          onlineSessions: onlineEvents.length,
+          offlineSessions: offlineEvents.length,
+          connectionStability: offlineEvents.length === 0 ? 'EXCELLENT' : 
+                              offlineEvents.length < 3 ? 'GOOD' : 'POOR'
+        },
+        uptime: calculateUptime(onlineEvents, offlineEvents),
+        healthScore: calculateDeviceHealthScore(events)
+      };
+    }
+    ```
+  </Tab>
+  
+  <Tab title="故障预测">
+    ```javascript
+    // 故障模式识别
+    function identifyFailurePatterns(events) {
+      const patterns = {
+        repeatingErrors: [],
+        escalatingWarnings: [],
+        performanceDegradation: []
+      };
+      
+      // 查找重复错误模式
+      const errorTypes = {};
+      events.filter(e => e.severity === 'ERROR').forEach(event => {
+        errorTypes[event.eventType] = (errorTypes[event.eventType] || 0) + 1;
+      });
+      
+      Object.entries(errorTypes).forEach(([type, count]) => {
+        if (count > 3) {
+          patterns.repeatingErrors.push({ type, count, severity: 'HIGH' });
+        }
+      });
+      
+      // 查找告警升级模式
+      const warnings = events.filter(e => e.severity === 'WARNING')
+        .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+      
+      for (let i = 1; i < warnings.length; i++) {
+        const timeDiff = new Date(warnings[i].timestamp) - new Date(warnings[i-1].timestamp);
+        if (timeDiff < 3600000 && warnings[i].eventType === warnings[i-1].eventType) {
+          patterns.escalatingWarnings.push({
+            type: warnings[i].eventType,
+            frequency: 'INCREASING',
+            risk: 'MEDIUM'
+          });
+        }
+      }
+      
+      return patterns;
+    }
+    
+    // 预测性维护建议
+    function generateMaintenanceRecommendations(patterns, healthScore) {
+      const recommendations = [];
+      
+      if (healthScore < 70) {
+        recommendations.push({
+          priority: 'HIGH',
+          action: '立即检查设备状态',
+          reason: '设备健康分数过低'
+        });
+      }
+      
+      patterns.repeatingErrors.forEach(error => {
+        recommendations.push({
+          priority: 'HIGH',
+          action: `处理重复错误: ${error.type}`,
+          reason: `该错误已发生${error.count}次`
+        });
+      });
+      
+      patterns.escalatingWarnings.forEach(warning => {
+        recommendations.push({
+          priority: 'MEDIUM',
+          action: `监控告警趋势: ${warning.type}`,
+          reason: '告警频率正在增加'
+        });
+      });
+      
+      return recommendations;
+    }
+    ```
+  </Tab>
+  
+  <Tab title="性能指标">
+    ```javascript
+    // 计算关键性能指标 (KPI)
+    function calculateDeviceKPIs(events, periodHours = 24) {
+      const totalEvents = events.length;
+      const errorEvents = events.filter(e => e.severity === 'ERROR');
+      const warningEvents = events.filter(e => e.severity === 'WARNING');
+      
+      // Mean Time Between Failures (MTBF)
+      const mtbf = errorEvents.length > 1 ? 
+        (periodHours * 60) / errorEvents.length : Infinity;
+      
+      // Mean Time To Recovery (MTTR)
+      const recoveryTimes = [];
+      for (let i = 0; i < errorEvents.length - 1; i++) {
+        const errorTime = new Date(errorEvents[i].timestamp);
+        const nextEventTime = new Date(errorEvents[i + 1].timestamp);
+        recoveryTimes.push((nextEventTime - errorTime) / (1000 * 60)); // 分钟
+      }
+      const mttr = recoveryTimes.length > 0 ? 
+        recoveryTimes.reduce((sum, time) => sum + time, 0) / recoveryTimes.length : 0;
+      
+      // 可用性计算
+      const downtime = errorEvents.length * 5; // 假设每个错误导致5分钟停机
+      const availability = ((periodHours * 60 - downtime) / (periodHours * 60)) * 100;
+      
+      return {
+        mtbf: Math.round(mtbf),
+        mttr: Math.round(mttr),
+        availability: Math.round(availability * 100) / 100,
+        errorRate: (errorEvents.length / totalEvents) * 100,
+        warningRate: (warningEvents.length / totalEvents) * 100,
+        totalIncidents: errorEvents.length + warningEvents.length,
+        criticalIncidents: errorEvents.length
+      };
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## 使用场景
+
+<CardGroup cols={2}>
+  <Card title="故障诊断" icon="stethoscope">
+    通过分析历史事件快速定位设备问题根因
+  </Card>
+  <Card title="预测性维护" icon="tools">
+    识别故障模式，提前进行设备维护
+  </Card>
+  <Card title="性能监控" icon="chart-line">
+    监控设备KPI指标和健康状况趋势
+  </Card>
+  <Card title="合规审计" icon="file-check">
+    生成设备操作和事件日志用于合规报告
+  </Card>
+</CardGroup>
+
+## 查询优化策略
+
+<AccordionGroup>
+  <Accordion title="事件类型过滤">
+    - 使用eventType参数过滤特定类型事件
+    - 按严重程度在客户端进一步过滤
+    - 组合多个条件提高查询精度
+    - 缓存常用事件类型的查询结果
+  </Accordion>
+  
+  <Accordion title="时间窗口优化">
+    - 使用合适的时间范围平衡性能和数据完整性
+    - 对长期分析使用滑动窗口查询
+    - 根据事件频率动态调整查询间隔
+    - 实施增量查询减少重复数据获取
+  </Accordion>
+  
+  <Accordion title="分页和缓存">
+    - 使用适当的分页大小优化查询性能
+    - 实施智能缓存策略减少API调用
+    - 对历史数据进行本地存储和索引
+    - 使用并发查询加速大量数据处理
+  </Accordion>
+</AccordionGroup>
+
+## 最佳实践
+
+<CardGroup cols={2}>
+  <Card title="实时监控" icon="eye">
+    结合历史事件分析和实时订阅进行全面监控
+  </Card>
+  <Card title="告警管理" icon="bell">
+    基于事件模式设置智能告警和升级规则
+  </Card>
+  <Card title="数据分析" icon="chart-bar">
+    利用机器学习识别异常事件模式
+  </Card>
+  <Card title="报告生成" icon="file-text">
+    定期生成设备健康和性能分析报告
+  </Card>
+</CardGroup>
+
+## 错误处理
+
+| 错误码 | 描述 | 解决方案 |
+|--------|------|----------|
+| 50006 | ProductKey为空 | 提供有效的productKey参数 |
+| 50007 | DeviceKey为空 | 提供有效的deviceKey参数 |
+| 50009 | 无效时间范围 | 确保endTime > startTime且都是有效的ISO日期 |
+| 50010 | 时间范围过大 | 缩短查询时间范围(每次查询最大30天) |
+| 70017 | 产品不存在 | 验证产品存在且可访问 |
+| 70018 | 设备不存在 | 验证设备已注册 |
+| 70089 | 权限受限 | 检查SaaS应用事件数据访问权限 |
+| 60010 | 未找到事件 | 验证设备在查询时间段内是否产生事件 |
+
+## 相关接口
+
+<CardGroup cols={2}>
+  <Card title="设备数据历史" href="/api-reference/endpoint/device-data-history">
+    查询设备历史通信数据记录
+  </Card>
+  <Card title="设备管理" href="/api-reference/endpoint/device-mgmt">
+    设备基本信息和状态管理
+  </Card>
+  <Card title="消息订阅" href="/api-reference/endpoint/subscription-mgmt">
+    实时接收设备事件通知
+  </Card>
+  <Card title="设备通信" href="/api-reference/endpoint/device-property-write">
+    设备数据和命令通信接口
+  </Card>
+</CardGroup>

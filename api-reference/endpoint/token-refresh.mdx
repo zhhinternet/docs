@@ -1,0 +1,155 @@
+---
+title: '刷新访问令牌'
+openapi: 'GET /v2/quecauth/accessKeyAuthrize/refreshToken'
+---
+
+## 刷新令牌概述
+
+当JWT token即将过期或已过期时，可以使用refresh token来获取新的访问令牌，无需重新进行完整的身份认证流程。
+
+## 令牌生命周期
+
+<Steps>
+  <Step title="检查令牌状态">
+    监控当前JWT token的过期时间，建议在过期前5分钟进行刷新
+  </Step>
+  <Step title="调用刷新接口">
+    使用有效的refresh token调用刷新接口获取新的访问令牌
+  </Step>
+  <Step title="更新本地存储">
+    将新获取的JWT token和refresh token更新到本地存储
+  </Step>
+  <Step title="重试原请求">
+    使用新的JWT token重新发起之前失败的API请求
+  </Step>
+</Steps>
+
+## 代码示例
+
+<CodeGroup>
+
+```javascript JavaScript
+async function refreshToken(refreshToken) {
+  const response = await fetch(
+    `https://iot-api.quectelcn.com/v2/quecauth/accessKeyAuthrize/refreshToken?refreshToken=${encodeURIComponent(refreshToken)}`,
+    {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    }
+  );
+  
+  const data = await response.json();
+  return data.access_token;
+}
+
+// 自动刷新token的包装函数
+async function apiCallWithAutoRefresh(apiCall) {
+  try {
+    return await apiCall();
+  } catch (error) {
+    if (error.message.includes('401')) {
+      // Token过期，尝试刷新
+      const refreshToken = localStorage.getItem('refresh_token');
+      if (refreshToken) {
+        const newToken = await refreshToken(refreshToken);
+        return await apiCall();
+      }
+    }
+    throw error;
+  }
+}
+```
+
+```python Python
+import requests
+import time
+
+def refresh_token(refresh_token):
+    url = "https://iot-api.quectelcn.com/v2/quecauth/accessKeyAuthrize/refreshToken"
+    params = {"refreshToken": refresh_token}
+    
+    response = requests.get(url, params=params)
+    response.raise_for_status()
+    
+    data = response.json()
+    return data["access_token"]
+
+class TokenManager:
+    def __init__(self):
+        self.access_token = None
+        self.refresh_token = None
+        self.token_expires_at = None
+    
+    def is_token_expired(self):
+        if not self.token_expires_at:
+            return True
+        # 提前5分钟刷新
+        return time.time() >= (self.token_expires_at - 300)
+    
+    def refresh_if_needed(self):
+        if self.is_token_expired() and self.refresh_token:
+            self.access_token = refresh_token(self.refresh_token)
+            self.token_expires_at = time.time() + 7200
+    
+    def get_valid_token(self):
+        self.refresh_if_needed()
+        return self.access_token
+```
+
+```curl cURL
+# 刷新访问令牌
+curl -X GET "https://iot-api.quectelcn.com/v2/quecauth/accessKeyAuthrize/refreshToken?refreshToken=YOUR_REFRESH_TOKEN" \
+  -H "Content-Type: application/json"
+```
+
+</CodeGroup>
+
+## 最佳实践
+
+<AccordionGroup>
+  <Accordion title="令牌管理策略">
+    - 在应用启动时检查token有效性
+    - 设置自动刷新机制，避免token过期
+    - 安全存储refresh token，建议使用加密存储
+    - 在token刷新失败时，引导用户重新登录
+  </Accordion>
+  
+  <Accordion title="错误处理">
+    - 监听401错误并自动触发token刷新
+    - 实现重试机制，避免因网络问题导致的刷新失败
+    - 记录token刷新的日志，便于问题排查
+    - 处理refresh token过期的情况
+  </Accordion>
+  
+  <Accordion title="安全考虑">
+    - 不要在URL参数中传递refresh token（生产环境建议使用POST请求体）
+    - 定期轮换refresh token，增强安全性
+    - 监控异常的token使用模式
+    - 在怀疑token泄露时，立即撤销相关tokens
+  </Accordion>
+</AccordionGroup>
+
+## 错误处理
+
+| 错误码 | 说明 | 解决方案 |
+|---------|------|----------|
+| 90048 | Refresh token无效或过期 | 用户需要重新登录获取新的token |
+| 90049 | Refresh token格式错误 | 检查传递的refresh token格式 |
+| 429 | 请求频率过高 | 实现退避算法，降低请求频率 |
+| 500 | 服务器内部错误 | 稍后重试或联系技术支持 |
+
+## 令牌安全
+
+<Warning>
+**Refresh Token安全**: Refresh token的有效期通常较长（如30天），一旦泄露风险较大。请确保：
+- 使用HTTPS传输
+- 安全存储在客户端
+- 定期更新refresh token
+- 监控异常使用行为
+</Warning>
+
+<Info>
+**Token有效期**: JWT token有效期为2小时，refresh token有效期为30天。建议在token过期前5分钟自动刷新。
+</Info>

@@ -1,0 +1,649 @@
+---
+title: '停止订阅'
+openapi: 'POST /v2/quecrule/r1/openapi/subscribe/stop'
+---
+
+## 停止订阅概述
+
+暂停消息订阅，停止接收新消息。停止后订阅状态变为INACTIVE，系统将不再向配置的端点推送新消息，但已接收的消息会继续处理完成。
+
+## 代码示例
+
+<CodeGroup>
+
+```javascript JavaScript
+async function stopSubscription(token, subscriptionId) {
+  const response = await fetch(
+    'https://iot-api.quectelcn.com/v2/quecrule/r1/openapi/subscribe/stop',
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': token,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ subscriptionId })
+    }
+  );
+  
+  return await response.json();
+}
+
+// 停止单个订阅
+const result = await stopSubscription(token, 'sub_1234567890abcdef');
+console.log('停止结果:', result);
+
+// 批量停止订阅
+async function stopMultipleSubscriptions(token, subscriptionIds) {
+  const results = [];
+  
+  for (const subscriptionId of subscriptionIds) {
+    try {
+      const result = await stopSubscription(token, subscriptionId);
+      results.push({
+        subscriptionId,
+        success: result.code === 200,
+        result
+      });
+    } catch (error) {
+      results.push({
+        subscriptionId,
+        success: false,
+        error: error.message
+      });
+    }
+  }
+  
+  return results;
+}
+
+// 停止多个订阅
+const subscriptionIds = ['sub_001', 'sub_002', 'sub_003'];
+const batchResults = await stopMultipleSubscriptions(token, subscriptionIds);
+console.log('批量停止结果:', batchResults);
+
+// 优雅停止管理器
+class SubscriptionStopper {
+  constructor(token) {
+    this.token = token;
+  }
+  
+  async gracefulStop(subscriptionId, waitTime = 30000) {
+    console.log(`开始优雅停止订阅 ${subscriptionId}`);
+    
+    // 发送停止请求
+    const result = await stopSubscription(this.token, subscriptionId);
+    
+    if (result.code === 200) {
+      console.log(`订阅 ${subscriptionId} 停止请求已发送，等待处理完成...`);
+      
+      // 等待当前消息处理完成
+      await new Promise(resolve => setTimeout(resolve, waitTime));
+      
+      console.log(`订阅 ${subscriptionId} 已优雅停止`);
+      
+      return {
+        ...result,
+        gracefulStop: true,
+        waitTime: waitTime
+      };
+    }
+    
+    return result;
+  }
+  
+  async emergencyStop(subscriptionIds, reason) {
+    console.log(`紧急停止订阅，原因: ${reason}`);
+    
+    const results = await stopMultipleSubscriptions(this.token, subscriptionIds);
+    
+    // 记录紧急停止日志
+    const log = {
+      timestamp: new Date().toISOString(),
+      action: 'emergency_stop',
+      reason: reason,
+      subscriptions: subscriptionIds,
+      results: results
+    };
+    
+    console.log('紧急停止日志:', log);
+    return results;
+  }
+  
+  async stopBySchedule(subscriptionIds, stopHour, startHour) {
+    const currentHour = new Date().getHours();
+    
+    if (currentHour >= stopHour || currentHour < startHour) {
+      console.log(`非工作时间 (${stopHour}-${startHour})，停止订阅`);
+      return await stopMultipleSubscriptions(this.token, subscriptionIds);
+    } else {
+      console.log('工作时间，跳过停止');
+      return [];
+    }
+  }
+  
+  async stopWithDrain(subscriptionId, drainTimeout = 60000) {
+    console.log(`开始排空停止订阅 ${subscriptionId}`);
+    
+    // 这里可以添加消息排空逻辑
+    // 例如：等待队列中的消息处理完成
+    
+    const startTime = Date.now();
+    while (Date.now() - startTime < drainTimeout) {
+      // 检查是否还有待处理的消息
+      // 这里需要根据实际的消息队列系统来实现
+      
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // 模拟检查逻辑
+      const hasMessages = false; // 实际应该检查队列状态
+      if (!hasMessages) {
+        break;
+      }
+    }
+    
+    // 执行停止
+    const result = await stopSubscription(this.token, subscriptionId);
+    
+    return {
+      ...result,
+      drainCompleted: true,
+      drainTime: Math.min(Date.now() - startTime, drainTimeout)
+    };
+  }
+  
+  async conditionalStop(subscriptionConfigs) {
+    const results = [];
+    
+    for (const config of subscriptionConfigs) {
+      const { subscriptionId, condition, reason } = config;
+      
+      try {
+        if (condition()) {
+          const result = await stopSubscription(this.token, subscriptionId);
+          results.push({
+            subscriptionId,
+            executed: true,
+            reason,
+            result
+          });
+        } else {
+          results.push({
+            subscriptionId,
+            executed: false,
+            reason: '条件不满足'
+          });
+        }
+      } catch (error) {
+        results.push({
+          subscriptionId,
+          executed: false,
+          error: error.message
+        });
+      }
+    }
+    
+    return results;
+  }
+}
+
+// 使用停止管理器
+const stopper = new SubscriptionStopper(token);
+
+// 优雅停止
+try {
+  const result = await stopper.gracefulStop('sub_1234567890abcdef', 30000);
+  console.log('优雅停止完成:', result);
+} catch (error) {
+  console.error('停止失败:', error.message);
+}
+
+// 紧急停止
+const emergencySubscriptions = ['sub_critical_001', 'sub_critical_002'];
+await stopper.emergencyStop(emergencySubscriptions, '系统过载');
+
+// 按时间计划停止
+const workSubscriptions = ['sub_work_001', 'sub_work_002'];
+await stopper.stopBySchedule(workSubscriptions, 18, 9); // 下午6点到上午9点停止
+
+// 排空停止
+const drainResult = await stopper.stopWithDrain('sub_1234567890abcdef', 60000);
+console.log('排空停止结果:', drainResult);
+
+// 条件停止
+const conditionalConfigs = [
+  {
+    subscriptionId: 'sub_high_load',
+    condition: () => getCurrentCpuUsage() > 80, // 假设的CPU检查函数
+    reason: 'CPU使用率过高'
+  },
+  {
+    subscriptionId: 'sub_error_prone',
+    condition: () => getErrorRate() > 0.1, // 假设的错误率检查函数
+    reason: '错误率过高'
+  }
+];
+
+const conditionalResults = await stopper.conditionalStop(conditionalConfigs);
+console.log('条件停止结果:', conditionalResults);
+
+// 辅助函数（示例）
+function getCurrentCpuUsage() {
+  // 实际应该从系统监控获取
+  return Math.random() * 100;
+}
+
+function getErrorRate() {
+  // 实际应该从错误监控获取
+  return Math.random();
+}
+```
+
+```python Python
+import requests
+import time
+from datetime import datetime
+import logging
+
+def stop_subscription(token, subscription_id):
+    """停止订阅"""
+    url = "https://iot-api.quectelcn.com/v2/quecrule/r1/openapi/subscribe/stop"
+    
+    payload = {"subscriptionId": subscription_id}
+    
+    headers = {
+        "Authorization": token,
+        "Content-Type": "application/json"
+    }
+    
+    response = requests.post(url, json=payload, headers=headers)
+    response.raise_for_status()
+    
+    return response.json()
+
+# 停止单个订阅
+result = stop_subscription(token, "sub_1234567890abcdef")
+print(f"停止结果: {result}")
+
+class SubscriptionStopper:
+    """订阅停止管理器"""
+    
+    def __init__(self, token):
+        self.token = token
+        self.logger = logging.getLogger(__name__)
+    
+    def graceful_stop(self, subscription_id, wait_time=30):
+        """优雅停止订阅"""
+        self.logger.info(f"开始优雅停止订阅 {subscription_id}")
+        
+        # 发送停止请求
+        result = stop_subscription(self.token, subscription_id)
+        
+        if result["code"] == 200:
+            self.logger.info(f"订阅 {subscription_id} 停止请求已发送，等待 {wait_time} 秒...")
+            time.sleep(wait_time)
+            self.logger.info(f"订阅 {subscription_id} 已优雅停止")
+            
+            return {
+                **result,
+                "graceful_stop": True,
+                "wait_time": wait_time
+            }
+        
+        return result
+    
+    def bulk_stop(self, subscription_ids):
+        """批量停止订阅"""
+        results = []
+        
+        for sub_id in subscription_ids:
+            try:
+                result = stop_subscription(self.token, sub_id)
+                results.append({
+                    "subscriptionId": sub_id,
+                    "success": True,
+                    "result": result
+                })
+                self.logger.info(f"成功停止订阅 {sub_id}")
+            except Exception as e:
+                results.append({
+                    "subscriptionId": sub_id,
+                    "success": False,
+                    "error": str(e)
+                })
+                self.logger.error(f"停止订阅 {sub_id} 失败: {e}")
+        
+        return results
+    
+    def emergency_stop(self, subscription_ids, reason):
+        """紧急停止"""
+        self.logger.warning(f"紧急停止订阅，原因: {reason}")
+        
+        results = self.bulk_stop(subscription_ids)
+        
+        # 记录紧急停止日志
+        log_entry = {
+            "timestamp": datetime.now().isoformat(),
+            "action": "emergency_stop",
+            "reason": reason,
+            "subscriptions": subscription_ids,
+            "results": results
+        }
+        
+        self.logger.critical(f"紧急停止日志: {log_entry}")
+        return results
+    
+    def scheduled_stop(self, subscription_ids, stop_hour, start_hour):
+        """按时间计划停止"""
+        current_hour = datetime.now().hour
+        
+        if current_hour >= stop_hour or current_hour < start_hour:
+            self.logger.info(f"非工作时间 ({stop_hour}-{start_hour})，停止订阅")
+            return self.bulk_stop(subscription_ids)
+        else:
+            self.logger.info("工作时间，跳过停止")
+            return []
+    
+    def stop_with_monitoring(self, subscription_id, monitor_time=60):
+        """停止订阅并监控状态"""
+        # 停止订阅
+        result = stop_subscription(self.token, subscription_id)
+        
+        if result["code"] == 200:
+            self.logger.info(f"订阅 {subscription_id} 已停止，开始监控...")
+            
+            # 监控停止状态
+            start_time = time.time()
+            while time.time() - start_time < monitor_time:
+                # 这里可以添加状态检查逻辑
+                time.sleep(5)
+                
+                # 检查订阅是否真正停止
+                # 实际应该调用查询接口检查状态
+                
+            self.logger.info(f"订阅 {subscription_id} 停止监控完成")
+            
+            return {
+                **result,
+                "monitoring_completed": True,
+                "monitor_duration": monitor_time
+            }
+        
+        return result
+    
+    def conditional_stop(self, subscription_configs):
+        """条件停止订阅"""
+        results = []
+        
+        for config in subscription_configs:
+            sub_id = config["subscriptionId"]
+            condition = config.get("condition", lambda: True)
+            reason = config.get("reason", "条件触发")
+            
+            try:
+                if condition():
+                    result = stop_subscription(self.token, sub_id)
+                    results.append({
+                        "subscriptionId": sub_id,
+                        "executed": True,
+                        "reason": reason,
+                        "result": result
+                    })
+                    self.logger.info(f"条件停止订阅 {sub_id}: {reason}")
+                else:
+                    results.append({
+                        "subscriptionId": sub_id,
+                        "executed": False,
+                        "reason": "条件不满足"
+                    })
+            except Exception as e:
+                results.append({
+                    "subscriptionId": sub_id,
+                    "executed": False,
+                    "error": str(e)
+                })
+                self.logger.error(f"条件停止订阅 {sub_id} 失败: {e}")
+        
+        return results
+    
+    def maintenance_stop(self, subscription_ids, maintenance_duration):
+        """维护模式停止"""
+        self.logger.info(f"进入维护模式，停止 {len(subscription_ids)} 个订阅")
+        
+        results = self.bulk_stop(subscription_ids)
+        
+        # 记录维护信息
+        maintenance_info = {
+            "start_time": datetime.now().isoformat(),
+            "duration": maintenance_duration,
+            "stopped_subscriptions": subscription_ids,
+            "results": results
+        }
+        
+        self.logger.info(f"维护模式信息: {maintenance_info}")
+        
+        return {
+            "maintenance_mode": True,
+            "maintenance_info": maintenance_info,
+            "stop_results": results
+        }
+
+# 配置日志
+logging.basicConfig(level=logging.INFO)
+
+# 使用停止管理器
+stopper = SubscriptionStopper(token)
+
+# 优雅停止
+try:
+    result = stopper.graceful_stop("sub_1234567890abcdef", 30)
+    print(f"优雅停止结果: {result}")
+except Exception as e:
+    print(f"停止失败: {e}")
+
+# 批量停止
+test_subscriptions = ["sub_001", "sub_002", "sub_003"]
+bulk_results = stopper.bulk_stop(test_subscriptions)
+print(f"批量停止结果: {bulk_results}")
+
+# 紧急停止
+emergency_subscriptions = ["sub_critical_001", "sub_critical_002"]
+emergency_results = stopper.emergency_stop(emergency_subscriptions, "系统过载")
+print(f"紧急停止结果: {emergency_results}")
+
+# 按时间停止
+work_subscriptions = ["sub_work_001", "sub_work_002"]
+scheduled_results = stopper.scheduled_stop(work_subscriptions, 18, 9)
+print(f"计划停止结果: {scheduled_results}")
+
+# 条件停止
+def check_system_load():
+    # 模拟系统负载检查
+    import random
+    return random.random() > 0.7
+
+subscription_configs = [
+    {
+        "subscriptionId": "sub_high_load",
+        "condition": check_system_load,
+        "reason": "系统负载过高"
+    }
+]
+
+conditional_results = stopper.conditional_stop(subscription_configs)
+print(f"条件停止结果: {conditional_results}")
+
+# 维护模式停止
+maintenance_results = stopper.maintenance_stop(test_subscriptions, 3600)  # 维护1小时
+print(f"维护停止结果: {maintenance_results}")
+```
+
+```curl cURL
+# 停止单个订阅
+curl -X POST "https://iot-api.quectelcn.com/v2/quecrule/r1/openapi/subscribe/stop" \
+  -H "Authorization: YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"subscriptionId": "sub_1234567890abcdef"}'
+
+# 使用变量停止订阅
+SUBSCRIPTION_ID="sub_1234567890abcdef"
+JWT_TOKEN="YOUR_JWT_TOKEN"
+
+curl -X POST "https://iot-api.quectelcn.com/v2/quecrule/r1/openapi/subscribe/stop" \
+  -H "Authorization: $JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d "{\"subscriptionId\": \"$SUBSCRIPTION_ID\"}"
+
+# 批量停止多个订阅的脚本示例
+#!/bin/bash
+SUBSCRIPTIONS=("sub_001" "sub_002" "sub_003")
+JWT_TOKEN="YOUR_JWT_TOKEN"
+
+echo "开始批量停止订阅..."
+
+for sub_id in "${SUBSCRIPTIONS[@]}"; do
+  echo "停止订阅: $sub_id"
+  curl -X POST "https://iot-api.quectelcn.com/v2/quecrule/r1/openapi/subscribe/stop" \
+    -H "Authorization: $JWT_TOKEN" \
+    -H "Content-Type: application/json" \
+    -d "{\"subscriptionId\": \"$sub_id\"}" \
+    -w "\n状态码: %{http_code}\n\n"
+    
+  # 添加短暂延迟，避免请求过于频繁
+  sleep 1
+done
+
+echo "批量停止完成"
+
+# 紧急停止脚本
+#!/bin/bash
+function emergency_stop() {
+  local reason="$1"
+  shift
+  local subscriptions=("$@")
+  
+  echo "紧急停止原因: $reason"
+  echo "停止订阅数量: ${#subscriptions[@]}"
+  
+  for sub_id in "${subscriptions[@]}"; do
+    echo "紧急停止订阅: $sub_id"
+    curl -X POST "https://iot-api.quectelcn.com/v2/quecrule/r1/openapi/subscribe/stop" \
+      -H "Authorization: $JWT_TOKEN" \
+      -H "Content-Type: application/json" \
+      -d "{\"subscriptionId\": \"$sub_id\"}" \
+      --max-time 10 \
+      -w "状态码: %{http_code}, 耗时: %{time_total}s\n"
+  done
+}
+
+# 使用示例
+# emergency_stop "系统过载" "sub_001" "sub_002" "sub_003"
+```
+
+</CodeGroup>
+
+## 响应示例
+
+```json
+{
+  "code": 200,
+  "msg": "OK",
+  "data": {
+    "subscriptionId": "sub_1234567890abcdef",
+    "status": "INACTIVE",
+    "stopTime": "2023-12-15T14:30:25Z",
+    "message": "订阅已成功停止"
+  }
+}
+```
+
+## 使用场景
+
+<AccordionGroup>
+  <Accordion title="系统维护">
+    系统维护期间临时停止订阅，避免在维护期间积累消息
+  </Accordion>
+  
+  <Accordion title="负载控制">
+    系统负载过高时停止部分订阅，保护系统稳定性
+  </Accordion>
+  
+  <Accordion title="错误恢复">
+    订阅出现错误时停止，为重启做准备
+  </Accordion>
+  
+  <Accordion title="下班时间">
+    非工作时间停止订阅，节省系统资源
+  </Accordion>
+</AccordionGroup>
+
+## 停止类型
+
+<CardGroup cols={2}>
+  <Card title="优雅停止" icon="hand-paper">
+    等待当前消息处理完成后停止，保证数据完整性
+  </Card>
+  <Card title="立即停止" icon="stop-circle">
+    立即停止接收新消息，适用于紧急情况
+  </Card>
+  <Card title="排空停止" icon="hourglass">
+    处理完队列中所有消息后停止
+  </Card>
+  <Card title="计划停止" icon="calendar">
+    按预定时间自动停止订阅
+  </Card>
+</CardGroup>
+
+## 状态变更
+
+停止成功后，订阅状态将从 `ACTIVE` 变为 `INACTIVE`，系统将：
+
+- 停止接收新消息
+- 完成当前正在处理的消息
+- 保留订阅配置信息
+- 更新统计指标
+
+## 最佳实践
+
+<AccordionGroup>
+  <Accordion title="优雅停止">
+    优先使用优雅停止，确保当前消息处理完成
+  </Accordion>
+  
+  <Accordion title="状态确认">
+    停止后确认订阅状态，确保操作成功
+  </Accordion>
+  
+  <Accordion title="日志记录">
+    记录停止原因和时间，便于问题排查
+  </Accordion>
+  
+  <Accordion title="监控告警">
+    设置监控，及时发现意外停止的订阅
+  </Accordion>
+</AccordionGroup>
+
+## 错误处理
+
+| 错误码 | 说明 | 解决方案 |
+|---------|------|----------|
+| 60008 | 订阅不存在 | 验证订阅ID是否正确 |
+| 60009 | 订阅状态冲突 | 检查订阅是否已处于INACTIVE状态 |
+| 60011 | 停止操作失败 | 检查系统状态，稍后重试 |
+| 70089 | 权限受限 | 检查用户的订阅管理权限 |
+
+## 相关接口
+
+<CardGroup cols={2}>
+  <Card title="启动订阅" href="/api-reference/endpoint/subscription-start">
+    启动已停止的订阅
+  </Card>
+  <Card title="查询订阅列表" href="/api-reference/endpoint/subscription-list">
+    查看所有订阅状态
+  </Card>
+  <Card title="创建订阅" href="/api-reference/endpoint/subscription-create">
+    创建新的消息订阅
+  </Card>
+  <Card title="SaaS订阅" href="/api-reference/endpoint/subscription-saas-create">
+    创建SaaS级订阅
+  </Card>
+</CardGroup>

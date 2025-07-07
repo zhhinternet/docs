@@ -1,0 +1,162 @@
+---
+title: '创建SaaS订阅'
+openapi: 'POST /v2/quecrule/r1/openapi/subscribe/saas'
+---
+
+## SaaS订阅概述
+
+创建SaaS级别的系统事件订阅，用于接收产品信息变更、设备信息变更等系统级通知。SaaS订阅提供全局监控能力，适用于管理平台和监控系统。
+
+## 消息类型
+
+<CardGroup cols={2}>
+  <Card title="产品信息变更" icon="box">
+    **消息类型**: 101<br/>
+    产品创建、修改、删除等产品生命周期事件
+  </Card>
+  <Card title="设备信息变更" icon="microchip">
+    **消息类型**: 102<br/>
+    设备注册、配置修改、状态变更等设备管理事件
+  </Card>
+</CardGroup>
+
+## 代码示例
+
+<CodeGroup>
+
+```javascript JavaScript
+async function createSaaSSubscription(token, subscriptionConfig) {
+  const response = await fetch(
+    'https://iot-api.quectelcn.com/v2/quecrule/r1/openapi/subscribe/saas',
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': token,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(subscriptionConfig)
+    }
+  );
+  
+  return await response.json();
+}
+
+// 创建SaaS级订阅
+const saasSubscription = {
+  queueName: 'saas-global-events',
+  subscriptionName: 'SaaS监控订阅',
+  messageType: 102 // 设备信息变更
+};
+
+const saasResult = await createSaaSSubscription(token, saasSubscription);
+
+// 创建产品变更订阅
+const productChangeSubscription = {
+  queueName: 'saas-product-changes',
+  subscriptionName: '产品变更监控',
+  messageType: 101 // 产品信息变更
+};
+
+const productChangeResult = await createSaaSSubscription(token, productChangeSubscription);
+```
+
+```python Python
+def create_saas_subscription(token, subscription_config):
+    """创建SaaS级订阅"""
+    url = "https://iot-api.quectelcn.com/v2/quecrule/r1/openapi/subscribe/saas"
+    
+    headers = {
+        "Authorization": token,
+        "Content-Type": "application/json"
+    }
+    
+    response = requests.post(url, json=subscription_config, headers=headers)
+    response.raise_for_status()
+    
+    return response.json()
+
+# 创建SaaS级订阅
+saas_subscription = {
+    "queueName": "saas-global-events",
+    "subscriptionName": "SaaS监控订阅",
+    "messageType": 102  # 设备信息变更
+}
+
+result = create_saas_subscription(token, saas_subscription)
+```
+
+```curl cURL
+# 创建SaaS级订阅
+curl -X POST "https://iot-api.quectelcn.com/v2/quecrule/r1/openapi/subscribe/saas" \
+  -H "Authorization: YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "queueName": "saas-global-events",
+    "subscriptionName": "SaaS监控订阅",
+    "messageType": 102
+  }'
+```
+
+</CodeGroup>
+
+## 响应示例
+
+```json
+{
+  "code": 200,
+  "msg": "OK",
+  "data": {
+    "subscriptionId": "saas_sub_1234567890abcdef",
+    "queueName": "saas-global-events",
+    "subscriptionName": "SaaS监控订阅",
+    "messageType": 102,
+    "status": "ACTIVE",
+    "createTime": "2023-12-15T14:30:25Z",
+    "amqpConfig": {
+      "host": "amqp.iot.quectelcn.com",
+      "port": 5671,
+      "virtualHost": "/iot",
+      "username": "saas_sub_1234567890abcdef",
+      "password": "generated_password_here",
+      "ssl": true
+    }
+  }
+}
+```
+
+## 使用场景
+
+<AccordionGroup>
+  <Accordion title="管理平台监控">
+    监控整个IoT平台的产品和设备变更，用于管理界面实时更新
+  </Accordion>
+  
+  <Accordion title="审计日志">
+    记录所有产品和设备的变更操作，用于合规审计
+  </Accordion>
+  
+  <Accordion title="系统集成">
+    与外部系统集成，同步产品和设备信息变更
+  </Accordion>
+  
+  <Accordion title="运维监控">
+    监控系统级事件，及时发现异常和故障
+  </Accordion>
+</AccordionGroup>
+
+## 相关接口
+
+<CardGroup cols={2}>
+  <Card title="创建消息队列" href="/api-reference/endpoint/queue-create">
+    创建和管理消息队列
+  </Card>
+  <Card title="创建订阅" href="/api-reference/endpoint/subscription-create">
+    创建产品和设备级订阅
+  </Card>
+  <Card title="查询订阅列表" href="/api-reference/endpoint/subscription-list">
+    查看所有订阅规则
+  </Card>
+  <Card title="订阅控制" href="/api-reference/endpoint/subscription-control">
+    启动和停止订阅
+  </Card>
+</CardGroup>

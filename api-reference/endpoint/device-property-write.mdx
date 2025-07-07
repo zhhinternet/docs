@@ -1,0 +1,312 @@
+---
+title: '发送下行物模型属性数据'
+openapi: 'POST /v2/deviceshadow/r3/openapi/dm/writeData'
+---
+
+## 发送下行物模型属性数据
+
+使用物模型(TSL)格式向IoT设备发送下行命令。此接口可实现设备的实时控制和配置更新，并提供可靠的消息传递。
+
+## 命令类型
+
+<CardGroup cols={2}>
+  <Card title="属性命令" icon="sliders">
+    更新设备属性，如设置、阈值和操作参数
+  </Card>
+  <Card title="服务命令" icon="gear">
+    调用设备服务，如重启、复位或自定义功能
+  </Card>
+</CardGroup>
+
+## 消息流程
+
+<Steps>
+  <Step title="发送命令">
+    API将命令发送到设备影子服务
+  </Step>
+  <Step title="消息排队">
+    命令被排队等待设备传递
+  </Step>
+  <Step title="设备接收">
+    设备在线时处理命令
+  </Step>
+  <Step title="确认响应">
+    设备发送确认响应
+  </Step>
+</Steps>
+
+## 接口地址
+
+`POST /v2/deviceshadow/r3/openapi/dm/writeData`
+
+## 请求参数
+
+| 参数名 | 类型 | 必填 | 说明 |
+|--------|------|------|------|
+| productKey | String | 是 | 产品PK |
+| deviceKey | String | 是 | 设备DK |
+| data | String | 是 | 发送下行数据的具体内容(JSON字符串) |
+
+## 代码示例
+
+<CodeGroup>
+
+```javascript JavaScript
+async function sendDeviceCommand(token, productKey, deviceKey, command) {
+  const response = await fetch(
+    'https://iot-api.quectelcn.com/v2/deviceshadow/r3/openapi/dm/writeData',
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': token,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        productKey,
+        deviceKey,
+        data: JSON.stringify(command)
+      })
+    }
+  );
+  
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  }
+  
+  return await response.json();
+}
+
+// 示例命令
+const switchCommand = [{ switch: true }];
+const temperatureCommand = [{ temperature_threshold: 25.5 }];
+const rebootCommand = [{ reboot: 1 }];
+
+// 发送命令
+await sendDeviceCommand(token, 'p12345', 'd67890', switchCommand);
+await sendDeviceCommand(token, 'p12345', 'd67890', temperatureCommand);
+```
+
+```python Python
+import requests
+import json
+
+def send_device_command(token, product_key, device_key, command):
+    """
+    发送设备命令
+    
+    Args:
+        token: JWT认证token
+        product_key: 产品PK
+        device_key: 设备DK
+        command: 命令数据，字典列表格式
+    
+    Returns:
+        包含消息ID的响应，用于跟踪
+    """
+    url = "https://iot-api.quectelcn.com/v2/deviceshadow/r3/openapi/dm/writeData"
+    
+    payload = {
+        "productKey": product_key,
+        "deviceKey": device_key,
+        "data": json.dumps(command)
+    }
+    
+    headers = {
+        "Authorization": token,
+        "Content-Type": "application/json"
+    }
+    
+    response = requests.post(url, json=payload, headers=headers)
+    response.raise_for_status()
+    
+    return response.json()
+
+# 使用示例
+switch_cmd = [{"switch": True}]
+temp_cmd = [{"temperature_threshold": 25.5}]
+
+result = send_device_command(token, "p12345", "d67890", switch_cmd)
+print(f"命令已发送，消息ID: {result['data']['messageId']}")
+```
+
+```curl cURL
+# 发送开关命令
+curl -X POST "https://iot-api.quectelcn.com/v2/deviceshadow/r3/openapi/dm/writeData" \
+  -H "Authorization: YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "productKey": "p12345",
+    "deviceKey": "d67890",
+    "data": "[{\"switch\":true}]"
+  }'
+
+# 发送温度阈值命令
+curl -X POST "https://iot-api.quectelcn.com/v2/deviceshadow/r3/openapi/dm/writeData" \
+  -H "Authorization: YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "productKey": "p12345",
+    "deviceKey": "d67890",
+    "data": "[{\"temperature_threshold\":25.5}]"
+  }'
+```
+
+</CodeGroup>
+
+## 物模型格式
+
+命令必须遵循产品模型中定义的TSL(物规范语言)格式：
+
+```json
+{
+  "properties": [
+    {
+      "code": "switch",
+      "dataType": "BOOL",
+      "rwFlag": "RW",
+      "description": "设备电源开关"
+    },
+    {
+      "code": "temperature_threshold",
+      "dataType": "FLOAT",
+      "rwFlag": "RW",
+      "unit": "°C",
+      "description": "温度警报阈值"
+    }
+  ],
+  "services": [
+    {
+      "code": "reboot",
+      "description": "重启设备"
+    }
+  ]
+}
+```
+
+## 响应示例
+
+### 命令发送响应
+
+```json
+{
+  "code": 200,
+  "msg": "OK",
+  "data": {
+    "messageId": "msg_1234567890abcdef",
+    "timestamp": "2023-12-15T14:30:25Z",
+    "status": "QUEUED"
+  }
+}
+```
+
+## 命令示例
+
+<Tabs>
+  <Tab title="开关控制">
+    ```json
+    [{"switch": true}]
+    ```
+    开启/关闭设备
+  </Tab>
+  
+  <Tab title="配置更新">
+    ```json
+    [{"temperature_threshold": 25.5, "humidity_threshold": 60}]
+    ```
+    更新设备设置
+  </Tab>
+  
+  <Tab title="服务调用">
+    ```json
+    [{"reboot": 1}]
+    ```
+    调用设备服务
+  </Tab>
+  
+  <Tab title="批量命令">
+    ```json
+    [
+      {"switch": true},
+      {"temperature_threshold": 25.5},
+      {"reporting_interval": 300}
+    ]
+    ```
+    一次发送多个命令
+  </Tab>
+</Tabs>
+
+## 传递保证
+
+<Info>
+**至少一次传递**: 当设备在线时，保证命令至少传递一次。在设备中实现幂等命令处理。
+</Info>
+
+<Warning>
+**离线设备**: 离线设备的命令会排队等待48小时。超过此期间后，未传递的命令将被丢弃。
+</Warning>
+
+## 错误处理
+
+| 错误码 | 描述 | 解决方案 |
+|--------|------|----------|
+| 50006 | ProductKey为空 | 提供有效的productKey参数 |
+| 50007 | DeviceKey为空 | 提供有效的deviceKey参数 |
+| 70017 | 产品不存在 | 验证产品存在且可访问 |
+| 70018 | 设备不存在 | 验证设备已注册 |
+| 70089 | 权限受限 | 检查SaaS应用设备授权 |
+| 50008 | 数据格式无效 | 确保数据遵循TSL格式 |
+
+## 最佳实践
+
+<AccordionGroup>
+  <Accordion title="命令设计">
+    - 保持命令简单和原子性
+    - 使用物模型中有意义的属性名称
+    - 包含TSL中定义的单位和数据类型
+    - 实现幂等命令处理
+  </Accordion>
+  
+  <Accordion title="错误处理">
+    - 始终检查响应状态和消息ID
+    - 为瞬时错误实施重试逻辑
+    - 通过订阅监控命令传递状态
+    - 记录失败命令用于调试
+  </Accordion>
+  
+  <Accordion title="性能">
+    - 在单个命令中批量多个属性更新
+    - 使用适当的数据类型以最小化有效载荷大小
+    - 为离线场景实施命令排队
+    - 监控命令响应时间
+  </Accordion>
+</AccordionGroup>
+
+## 消息跟踪
+
+使用返回的`messageId`通过AMQP订阅或webhook通知跟踪命令传递状态。
+
+```javascript
+// 跟踪命令传递
+const commandResult = await sendDeviceCommand(token, productKey, deviceKey, command);
+const messageId = commandResult.data.messageId;
+
+// 设置订阅以跟踪传递状态
+// (参见消息订阅文档)
+```
+
+## 相关接口
+
+<CardGroup cols={2}>
+  <Card title="发送服务数据" href="/api-reference/endpoint/device-service-invoke">
+    调用设备服务接口
+  </Card>
+  <Card title="读取设备数据" href="/api-reference/endpoint/device-data-read">
+    读取设备物模型数据
+  </Card>
+  <Card title="透传数据" href="/api-reference/endpoint/device-raw-data">
+    发送透传格式数据
+  </Card>
+  <Card title="设备位置" href="/api-reference/endpoint/device-location">
+    查询设备位置信息
+  </Card>
+</CardGroup>

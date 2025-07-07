@@ -1,0 +1,582 @@
+---
+title: '解绑子设备'
+openapi: 'POST /v2/devicemgr/r1/openapi/product/gateway/unbind'
+---
+
+## 解绑子设备
+
+将子设备从网关设备解绑，断开它们之间的拓扑关系。解绑后，子设备将无法通过该网关进行数据通信，需要重新绑定或配置为直连设备。
+
+## 解绑影响
+
+<CardGroup cols={2}>
+  <Card title="通信中断" icon="wifi-slash">
+    子设备将无法通过网关进行数据传输
+  </Card>
+  <Card title="状态变更" icon="exchange-alt">
+    子设备状态可能变为离线或未激活
+  </Card>
+</CardGroup>
+
+## 安全提醒
+
+<Warning>
+**危险操作**: 设备解绑是不可逆操作，将立即断开子设备与网关的连接，可能导致数据丢失或业务中断。解绑前请确保适当的协调和通知。
+</Warning>
+
+<Info>
+**数据保留**: 解绑操作不会删除子设备的历史数据和配置，但会影响后续的数据收集和设备控制。
+</Info>
+
+## 接口地址
+
+`POST /v2/devicemgr/r1/openapi/product/gateway/unbind`
+
+## 请求参数
+
+| 参数名 | 类型 | 必填 | 说明 |
+|--------|------|------|------|
+| gatewayProductKey | String | 是 | 网关产品PK |
+| gatewayDeviceKey | String | 是 | 网关设备DK |
+| childProductKey | String | 是 | 子设备产品PK |
+| childDeviceKey | String | 是 | 子设备DK |
+
+## 代码示例
+
+<CodeGroup>
+
+```javascript JavaScript
+async function unbindChildDevice(token, unbindRequest) {
+  const response = await fetch(
+    'https://iot-api.quectelcn.com/v2/devicemgr/r1/openapi/product/gateway/unbind',
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': token,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(unbindRequest)
+    }
+  );
+  
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  }
+  
+  return await response.json();
+}
+
+// 解绑单个子设备
+const unbindRequest = {
+  gatewayProductKey: 'gateway_product_123',
+  gatewayDeviceKey: 'gateway_device_456',
+  childProductKey: 'child_product_789',
+  childDeviceKey: 'child_device_101'
+};
+
+// 安全解绑：包含确认步骤
+async function safeUnbindDevice(token, unbindRequest) {
+  console.log(`警告: 即将解绑子设备 ${unbindRequest.childDeviceKey} 从网关 ${unbindRequest.gatewayDeviceKey}`);
+  console.log('此操作将立即中断设备通信！');
+  
+  // 在实际应用中，这里应该是用户界面确认
+  const confirmUnbind = confirm(`确定要解绑子设备 ${unbindRequest.childDeviceKey} 吗？`);
+  
+  if (!confirmUnbind) {
+    console.log('解绑操作已取消');
+    return { cancelled: true };
+  }
+  
+  try {
+    const unbindResult = await unbindChildDevice(token, unbindRequest);
+    
+    if (unbindResult.code === 200) {
+      console.log('子设备解绑成功');
+      return { success: true, result: unbindResult };
+    } else {
+      console.error('解绑失败:', unbindResult.msg);
+      return { success: false, error: unbindResult.msg };
+    }
+  } catch (error) {
+    console.error('解绑操作发生错误:', error.message);
+    return { success: false, error: error.message };
+  }
+}
+
+// 执行安全解绑
+const safeResult = await safeUnbindDevice(token, unbindRequest);
+
+// 批量解绑多个子设备
+async function batchUnbindDevices(token, unbindRequests) {
+  const results = [];
+  
+  for (const request of unbindRequests) {
+    try {
+      console.log(`正在解绑子设备: ${request.childDeviceKey}`);
+      const result = await unbindChildDevice(token, request);
+      
+      results.push({
+        childDeviceKey: request.childDeviceKey,
+        success: result.code === 200,
+        message: result.msg,
+        timestamp: new Date().toISOString()
+      });
+      
+      // 添加延迟避免过于频繁的API调用
+      await new Promise(resolve => setTimeout(resolve, 100));
+    } catch (error) {
+      results.push({
+        childDeviceKey: request.childDeviceKey,
+        success: false,
+        message: error.message,
+        timestamp: new Date().toISOString()
+      });
+    }
+  }
+  
+  return results;
+}
+
+// 批量解绑示例
+const batchUnbindRequests = [
+  {
+    gatewayProductKey: 'gateway_product_123',
+    gatewayDeviceKey: 'gateway_device_456',
+    childProductKey: 'child_product_789',
+    childDeviceKey: 'child_device_101'
+  },
+  {
+    gatewayProductKey: 'gateway_product_123',
+    gatewayDeviceKey: 'gateway_device_456',
+    childProductKey: 'child_product_789',
+    childDeviceKey: 'child_device_102'
+  }
+];
+
+const batchResults = await batchUnbindDevices(token, batchUnbindRequests);
+
+// 输出批量解绑结果
+batchResults.forEach(result => {
+  if (result.success) {
+    console.log(`✓ 子设备 ${result.childDeviceKey} 解绑成功`);
+  } else {
+    console.log(`✗ 子设备 ${result.childDeviceKey} 解绑失败: ${result.message}`);
+  }
+});
+
+// 网关清理：解绑所有子设备
+async function clearGatewaySubDevices(token, gatewayProductKey, gatewayDeviceKey) {
+  // 首先获取所有子设备列表
+  const subDevicesResponse = await fetch(
+    `https://iot-api.quectelcn.com/v2/devicemgr/r1/openapi/product/gateway/subList?productKey=${gatewayProductKey}&deviceKey=${gatewayDeviceKey}&pageSize=100`,
+    {
+      headers: {
+        'Authorization': token,
+        'Content-Type': 'application/json'
+      }
+    }
+  );
+  
+  const subDevices = await subDevicesResponse.json();
+  
+  if (!subDevices.data || subDevices.data.length === 0) {
+    console.log('网关下没有子设备需要解绑');
+    return { cleared: 0, results: [] };
+  }
+  
+  console.log(`发现 ${subDevices.data.length} 个子设备需要解绑`);
+  
+  // 构建解绑请求
+  const unbindRequests = subDevices.data.map(device => ({
+    gatewayProductKey,
+    gatewayDeviceKey,
+    childProductKey: device.productKey,
+    childDeviceKey: device.deviceKey
+  }));
+  
+  // 执行批量解绑
+  const results = await batchUnbindDevices(token, unbindRequests);
+  
+  const successCount = results.filter(r => r.success).length;
+  const failureCount = results.filter(r => !r.success).length;
+  
+  console.log(`网关清理完成: 成功解绑 ${successCount} 个, 失败 ${failureCount} 个`);
+  
+  return {
+    cleared: successCount,
+    failed: failureCount,
+    results
+  };
+}
+```
+
+```python Python
+import requests
+import time
+
+def unbind_child_device(token, unbind_request):
+    """
+    从网关解绑子设备
+    
+    Args:
+        token: JWT认证token
+        unbind_request: 包含网关和子设备信息的字典
+    
+    Returns:
+        解绑操作结果
+    """
+    url = "https://iot-api.quectelcn.com/v2/devicemgr/r1/openapi/product/gateway/unbind"
+    
+    headers = {
+        "Authorization": token,
+        "Content-Type": "application/json"
+    }
+    
+    response = requests.post(url, json=unbind_request, headers=headers)
+    response.raise_for_status()
+    
+    return response.json()
+
+# 解绑子设备
+unbind_request = {
+    "gatewayProductKey": "gateway_product_123",
+    "gatewayDeviceKey": "gateway_device_456",
+    "childProductKey": "child_product_789",
+    "childDeviceKey": "child_device_101"
+}
+
+# 安全解绑流程
+def safe_unbind_device(token, unbind_request):
+    """安全解绑设备，包含确认步骤"""
+    child_device_key = unbind_request["childDeviceKey"]
+    gateway_device_key = unbind_request["gatewayDeviceKey"]
+    
+    print(f"警告: 即将解绑子设备 {child_device_key} 从网关 {gateway_device_key}")
+    print("此操作将立即中断设备通信！")
+    
+    confirm = input("请输入 'YES' 确认解绑: ")
+    
+    if confirm != "YES":
+        print("解绑操作已取消")
+        return {"cancelled": True}
+    
+    try:
+        result = unbind_child_device(token, unbind_request)
+        
+        if result["code"] == 200:
+            print("子设备解绑成功")
+            return {"success": True, "result": result}
+        else:
+            print("解绑失败:", result["msg"])
+            return {"success": False, "error": result["msg"]}
+    except Exception as e:
+        print("解绑操作发生错误:", str(e))
+        return {"success": False, "error": str(e)}
+
+# 执行安全解绑
+safe_result = safe_unbind_device(token, unbind_request)
+
+# 设备解绑管理器
+class DeviceUnbindManager:
+    def __init__(self, token):
+        self.token = token
+    
+    def unbind_single_device(self, gateway_product_key, gateway_device_key, 
+                           child_product_key, child_device_key):
+        """解绑单个设备"""
+        request = {
+            "gatewayProductKey": gateway_product_key,
+            "gatewayDeviceKey": gateway_device_key,
+            "childProductKey": child_product_key,
+            "childDeviceKey": child_device_key
+        }
+        return unbind_child_device(self.token, request)
+    
+    def batch_unbind_devices(self, unbind_requests):
+        """批量解绑设备"""
+        results = []
+        
+        for request in unbind_requests:
+            try:
+                print(f"正在解绑子设备: {request['childDeviceKey']}")
+                result = unbind_child_device(self.token, request)
+                
+                results.append({
+                    "childDeviceKey": request["childDeviceKey"],
+                    "success": result["code"] == 200,
+                    "message": result["msg"]
+                })
+                
+                # 添加延迟避免过于频繁的API调用
+                time.sleep(0.1)
+                
+            except Exception as e:
+                results.append({
+                    "childDeviceKey": request["childDeviceKey"],
+                    "success": False,
+                    "message": str(e)
+                })
+        
+        return results
+    
+    def clear_gateway_children(self, gateway_product_key, gateway_device_key):
+        """清理网关下的所有子设备"""
+        # 首先获取子设备列表
+        list_url = "https://iot-api.quectelcn.com/v2/devicemgr/r1/openapi/product/gateway/subList"
+        params = {
+            "productKey": gateway_product_key,
+            "deviceKey": gateway_device_key,
+            "pageSize": 100
+        }
+        headers = {
+            "Authorization": self.token,
+            "Content-Type": "application/json"
+        }
+        
+        response = requests.get(list_url, params=params, headers=headers)
+        sub_devices = response.json()
+        
+        if not sub_devices["data"]:
+            print("网关下没有子设备需要解绑")
+            return {"cleared": 0, "results": []}
+        
+        print(f"发现 {len(sub_devices['data'])} 个子设备需要解绑")
+        
+        # 构建解绑请求
+        unbind_requests = []
+        for device in sub_devices["data"]:
+            unbind_requests.append({
+                "gatewayProductKey": gateway_product_key,
+                "gatewayDeviceKey": gateway_device_key,
+                "childProductKey": device["productKey"],
+                "childDeviceKey": device["deviceKey"]
+            })
+        
+        # 执行批量解绑
+        results = self.batch_unbind_devices(unbind_requests)
+        
+        success_count = sum(1 for r in results if r["success"])
+        failure_count = sum(1 for r in results if not r["success"])
+        
+        print(f"网关清理完成: 成功解绑 {success_count} 个, 失败 {failure_count} 个")
+        
+        return {
+            "cleared": success_count,
+            "failed": failure_count,
+            "results": results
+        }
+
+# 使用解绑管理器
+manager = DeviceUnbindManager(token)
+
+# 批量解绑示例
+batch_requests = [
+    {
+        "gatewayProductKey": "gateway_product_123",
+        "gatewayDeviceKey": "gateway_device_456",
+        "childProductKey": "child_product_789",
+        "childDeviceKey": "child_device_101"
+    },
+    {
+        "gatewayProductKey": "gateway_product_123",
+        "gatewayDeviceKey": "gateway_device_456",
+        "childProductKey": "child_product_789",
+        "childDeviceKey": "child_device_102"
+    }
+]
+
+batch_results = manager.batch_unbind_devices(batch_requests)
+
+# 输出结果
+for result in batch_results:
+    if result["success"]:
+        print(f"✓ 子设备 {result['childDeviceKey']} 解绑成功")
+    else:
+        print(f"✗ 子设备 {result['childDeviceKey']} 解绑失败: {result['message']}")
+
+# 清理整个网关
+# clear_result = manager.clear_gateway_children("gateway_product_123", "gateway_device_456")
+```
+
+```curl cURL
+# 解绑子设备
+curl -X POST "https://iot-api.quectelcn.com/v2/devicemgr/r1/openapi/product/gateway/unbind" \
+  -H "Authorization: YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "gatewayProductKey": "gateway_product_123",
+    "gatewayDeviceKey": "gateway_device_456",
+    "childProductKey": "child_product_789",
+    "childDeviceKey": "child_device_101"
+  }'
+
+# 解绑另一个子设备
+curl -X POST "https://iot-api.quectelcn.com/v2/devicemgr/r1/openapi/product/gateway/unbind" \
+  -H "Authorization: YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "gatewayProductKey": "gateway_product_123",
+    "gatewayDeviceKey": "gateway_device_456",
+    "childProductKey": "child_product_789",
+    "childDeviceKey": "child_device_102"
+  }'
+```
+
+</CodeGroup>
+
+## 响应示例
+
+### 成功响应
+
+```json
+{
+  "code": 200,
+  "msg": "OK",
+  "data": {
+    "unbindTime": "2023-12-15T14:30:25Z",
+    "gatewayDeviceKey": "gateway_device_456",
+    "childDeviceKey": "child_device_101"
+  }
+}
+```
+
+### 错误响应
+
+```json
+{
+  "code": 70024,
+  "msg": "解绑操作失败",
+  "error": "Child device not bound to this gateway"
+}
+```
+
+## 解绑前检查
+
+在执行解绑操作前，建议进行以下检查：
+
+<CardGroup cols={2}>
+  <Card title="绑定关系确认" icon="link">
+    确认子设备确实绑定到指定网关
+  </Card>
+  <Card title="业务影响评估" icon="exclamation-triangle">
+    评估解绑对业务流程的影响
+  </Card>
+  <Card title="数据备份" icon="database">
+    备份重要的设备数据和配置
+  </Card>
+  <Card title="通知相关方" icon="bell">
+    通知相关业务方即将进行的解绑操作
+  </Card>
+</CardGroup>
+
+## 解绑操作流程
+
+<Steps>
+  <Step title="验证绑定关系">
+    确认子设备当前绑定到指定网关
+  </Step>
+  <Step title="评估影响范围">
+    分析解绑对数据收集和业务的影响
+  </Step>
+  <Step title="执行解绑">
+    调用解绑API断开设备关联
+  </Step>
+  <Step title="验证结果">
+    确认解绑操作成功完成
+  </Step>
+  <Step title="后续处理">
+    根据需要重新配置设备或绑定关系
+  </Step>
+</Steps>
+
+## 使用场景
+
+<CardGroup cols={2}>
+  <Card title="设备迁移" icon="exchange-alt">
+    将子设备从一个网关迁移到另一个网关
+  </Card>
+  <Card title="网关维护" icon="tools">
+    网关设备维护时临时解绑子设备
+  </Card>
+  <Card title="拓扑重构" icon="project-diagram">
+    重新设计网络拓扑结构时的设备重分配
+  </Card>
+  <Card title="故障处理" icon="exclamation-triangle">
+    处理网关故障时的紧急设备解绑
+  </Card>
+</CardGroup>
+
+## 解绑后影响
+
+<AccordionGroup>
+  <Accordion title="设备状态变更">
+    - 子设备状态可能变为离线
+    - 设备无法通过原网关进行数据传输
+    - 需要重新配置设备的连接方式
+  </Accordion>
+  
+  <Accordion title="数据收集中断">
+    - 停止通过网关收集子设备数据
+    - 实时监控和告警可能受影响
+    - 需要确保数据收集的连续性
+  </Accordion>
+  
+  <Accordion title="控制命令失效">
+    - 无法通过网关向子设备发送控制命令
+    - 自动化规则可能需要调整
+    - 手动控制操作将无法执行
+  </Accordion>
+</AccordionGroup>
+
+## 错误处理
+
+| 错误码 | 描述 | 解决方案 |
+|--------|------|----------|
+| 70020 | 网关设备未找到 | 验证网关设备存在且可访问 |
+| 70021 | 子设备未找到 | 验证子设备存在且已注册 |
+| 70024 | 解绑操作失败 | 检查子设备是否当前绑定到网关 |
+| 70025 | 设备未绑定 | 确认子设备已绑定到指定网关 |
+| 70089 | 权限受限 | 检查SaaS应用网关管理权限 |
+
+## 最佳实践
+
+<CardGroup cols={2}>
+  <Card title="操作确认" icon="check-circle">
+    解绑前实施多层确认机制防止误操作
+  </Card>
+  <Card title="分批处理" icon="layer-group">
+    大量设备解绑时分批进行，避免系统负载过高
+  </Card>
+  <Card title="操作日志" icon="file-text">
+    记录解绑操作日志，便于追踪和审计
+  </Card>
+  <Card title="回滚准备" icon="undo">
+    准备回滚方案，必要时快速恢复绑定关系
+  </Card>
+</CardGroup>
+
+## 解绑后恢复
+
+如果需要恢复设备绑定关系：
+
+1. **重新绑定**: 使用设备绑定API重新建立关联
+2. **配置恢复**: 恢复设备的配置参数和规则
+3. **状态验证**: 确认设备重新上线并正常工作
+4. **监控恢复**: 恢复相关的监控和告警规则
+
+## 相关接口
+
+<CardGroup cols={2}>
+  <Card title="查询子设备列表" href="/api-reference/endpoint/gateway-subdevice-list">
+    查看网关下的所有子设备
+  </Card>
+  <Card title="网关查找" href="/api-reference/endpoint/gateway-lookup">
+    通过子设备查找对应网关
+  </Card>
+  <Card title="设备管理" href="/api-reference/endpoint/device-mgmt">
+    设备的基本管理操作
+  </Card>
+  <Card title="设备通信" href="/api-reference/endpoint/device-property-write">
+    设备数据通信接口
+  </Card>
+</CardGroup>

@@ -1,0 +1,492 @@
+---
+title: '发送下行透传数据'
+openapi: 'POST /v2/deviceshadow/r3/openapi/raw/sendData'
+---
+
+## 发送下行透传数据
+
+向使用透传格式的设备发送自定义二进制或文本数据。透传格式适用于有特殊协议要求或需要精确控制数据格式的设备。
+
+## 透传数据特点
+
+<CardGroup cols={3}>
+  <Card title="原始格式" icon="file-binary">
+    支持任意格式的二进制或文本数据
+  </Card>
+  <Card title="Base64编码" icon="code">
+    使用Base64编码确保数据传输安全
+  </Card>
+  <Card title="协议自由" icon="unlock">
+    不受物模型限制，支持自定义协议
+  </Card>
+</CardGroup>
+
+## 数据编码说明
+
+<Info>
+**Base64编码**: 所有透传数据必须经过Base64编码后发送。平台会自动解码后传递给设备。
+</Info>
+
+## 接口地址
+
+`POST /v2/deviceshadow/r3/openapi/raw/sendData`
+
+## 请求参数
+
+| 参数名 | 类型 | 必填 | 说明 |
+|--------|------|------|------|
+| productKey | String | 是 | 产品PK |
+| deviceKey | String | 是 | 设备DK |
+| data | String | 是 | Base64编码的透传数据 |
+
+## 代码示例
+
+<CodeGroup>
+
+```javascript JavaScript
+async function sendRawData(token, productKey, deviceKey, rawData) {
+  // 将原始数据转换为Base64
+  const base64Data = btoa(rawData);
+  
+  const response = await fetch(
+    'https://iot-api.quectelcn.com/v2/deviceshadow/r3/openapi/raw/sendData',
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': token,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        productKey,
+        deviceKey,
+        data: base64Data
+      })
+    }
+  );
+  
+  return await response.json();
+}
+
+// 发送文本命令
+const textCommand = "SET_TEMP:25.5";
+const textResult = await sendRawData(token, 'p12345', 'd67890', textCommand);
+
+// 发送十六进制数据
+const hexData = "AA55010203FF";
+const hexBytes = hexData.match(/.{2}/g).map(byte => parseInt(byte, 16));
+const hexString = String.fromCharCode(...hexBytes);
+const hexResult = await sendRawData(token, 'p12345', 'd67890', hexString);
+
+// 发送JSON格式数据（不使用物模型）
+const jsonCommand = JSON.stringify({
+  cmd: "update_config",
+  params: {
+    interval: 300,
+    threshold: 25.5
+  }
+});
+const jsonResult = await sendRawData(token, 'p12345', 'd67890', jsonCommand);
+
+// 发送自定义协议数据
+const customProtocol = Buffer.from([0xAA, 0x55, 0x01, 0x02, 0x03, 0xFF]);
+const customBase64 = customProtocol.toString('base64');
+const customResult = await fetch(
+  'https://iot-api.quectelcn.com/v2/deviceshadow/r3/openapi/raw/sendData',
+  {
+    method: 'POST',
+    headers: {
+      'Authorization': token,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      productKey: 'p12345',
+      deviceKey: 'd67890',
+      data: customBase64
+    })
+  }
+).then(res => res.json());
+```
+
+```python Python
+import base64
+import requests
+import json
+
+def send_raw_data(token, product_key, device_key, raw_data):
+    """
+    发送下行透传数据
+    
+    Args:
+        token: JWT认证token
+        product_key: 产品PK
+        device_key: 设备DK
+        raw_data: 原始数据（字符串或字节）
+    
+    Returns:
+        发送结果
+    """
+    url = "https://iot-api.quectelcn.com/v2/deviceshadow/r3/openapi/raw/sendData"
+    
+    # 将原始数据转换为Base64
+    if isinstance(raw_data, str):
+        raw_data = raw_data.encode('utf-8')
+    base64_data = base64.b64encode(raw_data).decode('utf-8')
+    
+    payload = {
+        "productKey": product_key,
+        "deviceKey": device_key,
+        "data": base64_data
+    }
+    
+    headers = {
+        "Authorization": token,
+        "Content-Type": "application/json"
+    }
+    
+    response = requests.post(url, json=payload, headers=headers)
+    response.raise_for_status()
+    
+    return response.json()
+
+# 发送文本命令
+text_command = "SET_TEMP:25.5"
+result = send_raw_data(token, "p12345", "d67890", text_command)
+
+# 发送十六进制数据
+hex_data = bytes.fromhex("AA55010203FF")
+hex_result = send_raw_data(token, "p12345", "d67890", hex_data)
+
+# 发送JSON格式数据
+json_command = json.dumps({
+    "cmd": "update_config",
+    "params": {
+        "interval": 300,
+        "threshold": 25.5
+    }
+})
+json_result = send_raw_data(token, "p12345", "d67890", json_command)
+
+# 发送二进制协议数据
+binary_data = b'\xAA\x55\x01\x02\x03\xFF'
+binary_result = send_raw_data(token, "p12345", "d67890", binary_data)
+
+# 发送Modbus RTU命令示例
+def send_modbus_command(token, product_key, device_key, slave_id, function_code, register_addr, data):
+    """发送Modbus RTU命令"""
+    # 构建Modbus命令帧
+    command = bytearray([slave_id, function_code])
+    command.extend(register_addr.to_bytes(2, 'big'))
+    command.extend(data.to_bytes(2, 'big'))
+    
+    # 计算CRC校验（简化示例）
+    crc = 0xFFFF  # 实际应用中需要正确的CRC计算
+    command.extend(crc.to_bytes(2, 'little'))
+    
+    return send_raw_data(token, product_key, device_key, bytes(command))
+
+# 发送Modbus写寄存器命令
+modbus_result = send_modbus_command(token, "p12345", "d67890", 1, 6, 0x1000, 2550)
+```
+
+```curl cURL
+# 发送文本命令（Hello Device的Base64编码）
+curl -X POST "https://iot-api.quectelcn.com/v2/deviceshadow/r3/openapi/raw/sendData" \
+  -H "Authorization: YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "productKey": "p12345",
+    "deviceKey": "d67890",
+    "data": "SGVsbG8gRGV2aWNl"
+  }'
+
+# 发送十六进制数据（AA55010203FF的Base64编码）
+curl -X POST "https://iot-api.quectelcn.com/v2/deviceshadow/r3/openapi/raw/sendData" \
+  -H "Authorization: YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "productKey": "p12345",
+    "deviceKey": "d67890",
+    "data": "qlUBAgP/"
+  }'
+```
+
+</CodeGroup>
+
+## 数据格式示例
+
+<Tabs>
+  <Tab title="文本协议">
+    ```javascript
+    // 原始文本命令
+    const textCmd = "SET_TEMP:25.5;SET_HUM:60";
+    
+    // Base64编码
+    const encoded = btoa(textCmd);
+    // 结果: "U0VUX1RFTU06MjUuNTtTRVRfSFVNOjYw"
+    ```
+    简单的文本协议命令
+  </Tab>
+  
+  <Tab title="十六进制数据">
+    ```javascript
+    // 十六进制字符串转字节数组
+    const hexString = "AA55010203FF";
+    const bytes = hexString.match(/.{2}/g).map(b => parseInt(b, 16));
+    const binaryData = String.fromCharCode(...bytes);
+    
+    // Base64编码
+    const encoded = btoa(binaryData);
+    ```
+    二进制协议数据
+  </Tab>
+  
+  <Tab title="自定义JSON">
+    ```javascript
+    // 自定义JSON协议
+    const jsonCmd = {
+      type: "control",
+      device_id: "sensor_001",
+      commands: [
+        { action: "set_threshold", value: 25.5 },
+        { action: "enable_alarm", value: true }
+      ]
+    };
+    
+    const jsonString = JSON.stringify(jsonCmd);
+    const encoded = btoa(jsonString);
+    ```
+    自定义JSON格式协议
+  </Tab>
+  
+  <Tab title="Modbus协议">
+    ```python
+    # Modbus RTU写单个寄存器示例
+    slave_id = 0x01      # 从站地址
+    func_code = 0x06     # 功能码：写单个寄存器
+    reg_addr = 0x1000    # 寄存器地址
+    reg_value = 2550     # 寄存器值
+    
+    # 构建命令帧
+    command = bytes([slave_id, func_code]) + \
+              reg_addr.to_bytes(2, 'big') + \
+              reg_value.to_bytes(2, 'big')
+    
+    # 添加CRC校验（此处简化）
+    command += b'\x00\x00'  # CRC占位符
+    
+    # Base64编码
+    encoded = base64.b64encode(command).decode()
+    ```
+    Modbus RTU协议命令
+  </Tab>
+</Tabs>
+
+## 响应示例
+
+### 成功响应
+
+```json
+{
+  "code": 200,
+  "msg": "OK",
+  "data": {
+    "messageId": "raw_1234567890abcdef",
+    "timestamp": "2023-12-15T14:30:25Z",
+    "status": "QUEUED",
+    "dataSize": 24
+  }
+}
+```
+
+### 错误响应
+
+```json
+{
+  "code": 50008,
+  "msg": "数据格式无效",
+  "error": "Invalid Base64 encoding"
+}
+```
+
+## 使用场景
+
+<CardGroup cols={2}>
+  <Card title="工业协议" icon="industry">
+    Modbus、CAN、485等工业标准协议
+  </Card>
+  <Card title="自定义协议" icon="code">
+    专有协议或特殊数据格式要求
+  </Card>
+  <Card title="固件升级" icon="download">
+    发送固件数据包或升级指令
+  </Card>
+  <Card title="二进制控制" icon="toggle-on">
+    精确的二进制控制命令
+  </Card>
+</CardGroup>
+
+## 数据处理工具
+
+<AccordionGroup>
+  <Accordion title="Base64编码工具">
+    ```javascript
+    // JavaScript Base64编码
+    function encodeToBase64(data) {
+      if (typeof data === 'string') {
+        return btoa(data);
+      } else if (data instanceof ArrayBuffer) {
+        return btoa(String.fromCharCode(...new Uint8Array(data)));
+      }
+    }
+    
+    // Python Base64编码
+    import base64
+    def encode_to_base64(data):
+        if isinstance(data, str):
+            data = data.encode('utf-8')
+        return base64.b64encode(data).decode('utf-8')
+    ```
+  </Accordion>
+  
+  <Accordion title="十六进制转换">
+    ```javascript
+    // 十六进制字符串转二进制
+    function hexToBytes(hex) {
+      const bytes = [];
+      for (let i = 0; i < hex.length; i += 2) {
+        bytes.push(parseInt(hex.substr(i, 2), 16));
+      }
+      return new Uint8Array(bytes);
+    }
+    
+    // 二进制转十六进制字符串
+    function bytesToHex(bytes) {
+      return Array.from(bytes)
+        .map(b => b.toString(16).padStart(2, '0'))
+        .join('');
+    }
+    ```
+  </Accordion>
+  
+  <Accordion title="CRC校验计算">
+    ```python
+    def calculate_crc16(data):
+        """计算CRC16校验码"""
+        crc = 0xFFFF
+        for byte in data:
+            crc ^= byte
+            for _ in range(8):
+                if crc & 1:
+                    crc = (crc >> 1) ^ 0xA001
+                else:
+                    crc >>= 1
+        return crc.to_bytes(2, 'little')
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## 最佳实践
+
+<Warning>
+**数据大小限制**: 单次透传数据建议不超过4KB，过大的数据包可能导致传输失败。
+</Warning>
+
+<Info>
+**编码验证**: 发送前验证Base64编码的正确性，避免因编码错误导致的传输失败。
+</Info>
+
+## 错误处理
+
+| 错误码 | 描述 | 解决方案 |
+|--------|------|----------|
+| 50006 | ProductKey为空 | 提供有效的productKey参数 |
+| 50007 | DeviceKey为空 | 提供有效的deviceKey参数 |
+| 50008 | 数据格式无效 | 验证Base64编码格式正确性 |
+| 50012 | 数据大小超限 | 减少数据包大小或分片发送 |
+| 70017 | 产品不存在 | 验证产品存在且可访问 |
+| 70018 | 设备不存在 | 验证设备已注册 |
+| 70089 | 权限受限 | 检查SaaS应用设备授权 |
+
+## 协议对接指南
+
+<Tabs>
+  <Tab title="Modbus RTU">
+    ```python
+    class ModbusRTU:
+        def __init__(self, token, product_key, device_key):
+            self.token = token
+            self.product_key = product_key
+            self.device_key = device_key
+        
+        def read_holding_registers(self, start_addr, count):
+            """读保持寄存器"""
+            cmd = bytes([0x01, 0x03]) + \
+                  start_addr.to_bytes(2, 'big') + \
+                  count.to_bytes(2, 'big')
+            cmd += self._calculate_crc(cmd)
+            return send_raw_data(self.token, self.product_key, self.device_key, cmd)
+        
+        def write_single_register(self, addr, value):
+            """写单个寄存器"""
+            cmd = bytes([0x01, 0x06]) + \
+                  addr.to_bytes(2, 'big') + \
+                  value.to_bytes(2, 'big')
+            cmd += self._calculate_crc(cmd)
+            return send_raw_data(self.token, self.product_key, self.device_key, cmd)
+    ```
+  </Tab>
+  
+  <Tab title="自定义二进制协议">
+    ```javascript
+    class CustomProtocol {
+      constructor(token, productKey, deviceKey) {
+        this.token = token;
+        this.productKey = productKey;
+        this.deviceKey = deviceKey;
+      }
+      
+      async sendCommand(commandType, payload) {
+        // 协议头：2字节
+        const header = new Uint8Array([0xAA, 0x55]);
+        
+        // 命令类型：1字节
+        const cmdType = new Uint8Array([commandType]);
+        
+        // 数据长度：2字节
+        const length = new Uint8Array([(payload.length >> 8) & 0xFF, payload.length & 0xFF]);
+        
+        // 组装完整数据包
+        const packet = new Uint8Array(header.length + cmdType.length + length.length + payload.length + 1);
+        packet.set(header, 0);
+        packet.set(cmdType, 2);
+        packet.set(length, 3);
+        packet.set(payload, 5);
+        
+        // 计算校验和
+        const checksum = packet.slice(0, -1).reduce((sum, byte) => sum + byte, 0) & 0xFF;
+        packet[packet.length - 1] = checksum;
+        
+        return await sendRawData(this.token, this.productKey, this.deviceKey, 
+                               String.fromCharCode(...packet));
+      }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## 相关接口
+
+<CardGroup cols={2}>
+  <Card title="发送属性数据" href="/api-reference/endpoint/device-property-write">
+    使用物模型格式发送数据
+  </Card>
+  <Card title="发送服务数据" href="/api-reference/endpoint/device-service-invoke">
+    调用设备物模型服务
+  </Card>
+  <Card title="读取设备数据" href="/api-reference/endpoint/device-data-read">
+    读取设备当前状态
+  </Card>
+  <Card title="数据历史查询" href="/api-reference/endpoint/data-history">
+    查询透传数据历史记录
+  </Card>
+</CardGroup>

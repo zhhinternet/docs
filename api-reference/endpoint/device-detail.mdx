@@ -1,0 +1,422 @@
+---
+title: '查询设备详情'
+openapi: 'GET /v2/devicemgr/r3/openapi/device/detail'
+---
+
+## 设备详情概述
+
+获取指定设备的完整详细信息，包括基本属性、连接状态、最新数据、配置参数和统计信息等。
+
+## 详情信息类型
+
+<CardGroup cols={2}>
+  <Card title="基本信息" icon="info-circle">
+    设备名称、创建时间、所属产品等基础属性
+  </Card>
+  <Card title="状态信息" icon="signal">
+    在线状态、最后上线时间、连接质量等状态数据
+  </Card>
+  <Card title="配置信息" icon="cog">
+    设备配置、固件版本、安全策略等配置参数
+  </Card>
+  <Card title="统计数据" icon="chart-bar">
+    消息数量、数据流量、在线时长等统计信息
+  </Card>
+</CardGroup>
+
+## 设备状态说明
+
+<Tabs>
+  <Tab title="在线 (ONLINE)">
+    **设备已连接**: 设备正常连接到平台并可以通信
+    - 可以接收下行命令和数据
+    - 能够主动上报数据和事件
+    - 支持实时监控和控制
+    - 响应时间通常在秒级别
+  </Tab>
+  
+  <Tab title="离线 (OFFLINE)">
+    **设备已断开**: 设备暂时失去与平台的连接
+    - 无法接收实时命令
+    - 下行消息会被平台缓存
+    - 设备重新上线时会接收缓存消息
+    - 可能由于网络、电源或设备故障导致
+  </Tab>
+  
+  <Tab title="未激活 (UNACTIVE)">
+    **设备未首次连接**: 设备已注册但从未连接过平台
+    - 设备密钥已生成但未使用
+    - 需要设备端进行首次连接激活
+    - 激活后状态会变为ONLINE或OFFLINE
+    - 通常出现在新注册的设备
+  </Tab>
+</Tabs>
+
+## 代码示例
+
+<CodeGroup>
+
+```javascript JavaScript
+async function getDeviceDetail(token, productKey, deviceKey) {
+  const response = await fetch(
+    `https://iot-api.quectelcn.com/v2/devicemgr/r3/openapi/device/detail?productKey=${productKey}&deviceKey=${deviceKey}`,
+    {
+      headers: {
+        'Authorization': token,
+        'Content-Type': 'application/json'
+      }
+    }
+  );
+  
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  }
+  
+  return await response.json();
+}
+
+// 使用示例
+async function displayDeviceInfo(token, productKey, deviceKey) {
+  try {
+    const result = await getDeviceDetail(token, productKey, deviceKey);
+    const device = result.data;
+    
+    console.log('=== 设备详细信息 ===');
+    console.log(`设备名称: ${device.deviceName}`);
+    console.log(`设备状态: ${device.status}`);
+    console.log(`最后上线: ${device.lastOnlineTime}`);
+    console.log(`固件版本: ${device.firmwareVersion}`);
+    console.log(`IP地址: ${device.ipAddress}`);
+    
+    // 根据设备状态显示不同信息
+    if (device.status === 'ONLINE') {
+      console.log('✅ 设备在线，可以进行实时操作');
+      console.log(`信号强度: ${device.signalStrength}dBm`);
+      console.log(`网络类型: ${device.networkType}`);
+    } else if (device.status === 'OFFLINE') {
+      console.log('⚠️ 设备离线，消息将被缓存');
+      const offlineTime = new Date() - new Date(device.lastOnlineTime);
+      console.log(`离线时长: ${Math.floor(offlineTime / 1000 / 60)} 分钟`);
+    } else if (device.status === 'UNACTIVE') {
+      console.log('🔄 设备未激活，等待首次连接');
+    }
+    
+    return device;
+  } catch (error) {
+    console.error('获取设备详情失败:', error.message);
+    return null;
+  }
+}
+
+// 监控设备状态变化
+async function monitorDeviceStatus(token, productKey, deviceKey, intervalSeconds = 30) {
+  const monitor = setInterval(async () => {
+    const device = await getDeviceDetail(token, productKey, deviceKey);
+    if (device) {
+      console.log(`[${new Date().toISOString()}] 设备 ${deviceKey} 状态: ${device.data.status}`);
+    }
+  }, intervalSeconds * 1000);
+  
+  // 返回停止监控的函数
+  return () => clearInterval(monitor);
+}
+```
+
+```python Python
+import requests
+from datetime import datetime, timezone
+import time
+
+def get_device_detail(token, product_key, device_key):
+    """
+    获取设备详细信息
+    
+    Args:
+        token: JWT认证令牌
+        product_key: 产品PK
+        device_key: 设备DK
+        
+    Returns:
+        设备详细信息
+    """
+    url = "https://iot-api.quectelcn.com/v2/devicemgr/r3/openapi/device/detail"
+    
+    params = {
+        "productKey": product_key,
+        "deviceKey": device_key
+    }
+    
+    headers = {
+        "Authorization": token,
+        "Content-Type": "application/json"
+    }
+    
+    response = requests.get(url, params=params, headers=headers)
+    response.raise_for_status()
+    
+    return response.json()
+
+class DeviceMonitor:
+    def __init__(self, token):
+        self.token = token
+        
+    def get_device_info(self, product_key, device_key):
+        """获取设备信息并格式化显示"""
+        try:
+            result = get_device_detail(self.token, product_key, device_key)
+            device = result["data"]
+            
+            print(f"设备名称: {device['deviceName']}")
+            print(f"设备DK: {device['deviceKey']}")
+            print(f"设备状态: {device['status']}")
+            print(f"创建时间: {device['createTime']}")
+            print(f"最后上线: {device.get('lastOnlineTime', '从未上线')}")
+            
+            if 'location' in device:
+                print(f"设备位置: {device['location']}")
+            
+            if 'firmwareVersion' in device:
+                print(f"固件版本: {device['firmwareVersion']}")
+                
+            if 'hardwareVersion' in device:
+                print(f"硬件版本: {device['hardwareVersion']}")
+            
+            # 计算在线时长统计
+            if device.get('totalOnlineTime'):
+                hours = device['totalOnlineTime'] // 3600
+                print(f"累计在线时长: {hours} 小时")
+            
+            return device
+            
+        except requests.exceptions.RequestException as e:
+            print(f"获取设备详情失败: {e}")
+            return None
+    
+    def check_device_health(self, product_key, device_key):
+        """检查设备健康状态"""
+        device = self.get_device_info(product_key, device_key)
+        if not device:
+            return None
+            
+        health_score = 100
+        issues = []
+        
+        # 检查连接状态
+        if device['status'] == 'OFFLINE':
+            health_score -= 30
+            issues.append("设备离线")
+        elif device['status'] == 'UNACTIVE':
+            health_score -= 50
+            issues.append("设备未激活")
+        
+        # 检查最后上线时间
+        if device.get('lastOnlineTime'):
+            last_online = datetime.fromisoformat(device['lastOnlineTime'].replace('Z', '+00:00'))
+            offline_hours = (datetime.now(timezone.utc) - last_online).total_seconds() / 3600
+            
+            if offline_hours > 24:
+                health_score -= 20
+                issues.append(f"超过24小时未上线 ({offline_hours:.1f}小时)")
+            elif offline_hours > 1:
+                health_score -= 10
+                issues.append(f"超过1小时未上线 ({offline_hours:.1f}小时)")
+        
+        # 检查消息频率
+        if device.get('messageCount', 0) == 0:
+            health_score -= 15
+            issues.append("无消息上报")
+        
+        print(f"\n设备健康评分: {health_score}/100")
+        if issues:
+            print("发现问题:")
+            for issue in issues:
+                print(f"  - {issue}")
+        else:
+            print("设备状态良好")
+            
+        return {
+            "health_score": health_score,
+            "issues": issues,
+            "device": device
+        }
+
+# 使用示例
+monitor = DeviceMonitor(token)
+
+# 获取设备详情
+device_info = monitor.get_device_info("p12345", "d67890")
+
+# 检查设备健康状态
+health_status = monitor.check_device_health("p12345", "d67890")
+```
+
+```curl cURL
+# 查询设备详情
+curl -X GET "https://iot-api.quectelcn.com/v2/devicemgr/r3/openapi/device/detail?productKey=p12345&deviceKey=d67890" \
+  -H "Authorization: YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json"
+```
+
+</CodeGroup>
+
+## 响应示例
+
+```json
+{
+  "code": 200,
+  "msg": "OK",
+  "data": {
+    "deviceKey": "d67890",
+    "deviceName": "车间温度传感器-001",
+    "productKey": "p12345",
+    "status": "ONLINE",
+    "createTime": "2023-12-01T08:30:00Z",
+    "lastOnlineTime": "2023-12-15T14:25:30Z",
+    "firstOnlineTime": "2023-12-01T09:15:20Z",
+    "description": "车间A区域温度监测设备",
+    "location": {
+      "latitude": 31.2304,
+      "longitude": 121.4737,
+      "address": "上海市黄浦区车间A"
+    },
+    "firmwareVersion": "v2.1.3",
+    "hardwareVersion": "v1.0.1",
+    "deviceModel": "QT-TH-2023",
+    "networkInfo": {
+      "ipAddress": "192.168.1.100",
+      "networkType": "4G-LTE",
+      "signalStrength": -75,
+      "carrierId": "46000",
+      "cellId": "12345678"
+    },
+    "statistics": {
+      "totalOnlineTime": 86400,
+      "messageCount": 1250,
+      "lastMessageTime": "2023-12-15T14:20:15Z",
+      "dataUsage": {
+        "uplink": 1048576,
+        "downlink": 524288
+      }
+    },
+    "configuration": {
+      "reportingInterval": 300,
+      "batchSize": 10,
+      "retryTimes": 3,
+      "heartbeatInterval": 60
+    },
+    "security": {
+      "authMethod": "PSK",
+      "encryptionEnabled": true,
+      "lastAuthTime": "2023-12-15T14:25:30Z",
+      "certificateExpiry": "2024-12-01T00:00:00Z"
+    },
+    "tags": {
+      "department": "生产部",
+      "workshop": "A车间",
+      "equipment": "温控系统"
+    }
+  }
+}
+```
+
+## 详情字段说明
+
+<AccordionGroup>
+  <Accordion title="基本信息字段">
+    - **deviceKey**: 设备唯一标识符
+    - **deviceName**: 设备友好名称
+    - **productKey**: 所属产品标识
+    - **status**: 设备当前状态
+    - **createTime**: 设备注册时间
+    - **description**: 设备描述信息
+    - **location**: 设备地理位置信息
+  </Accordion>
+  
+  <Accordion title="版本信息字段">
+    - **firmwareVersion**: 设备固件版本
+    - **hardwareVersion**: 设备硬件版本
+    - **deviceModel**: 设备型号
+    - **softwareVersion**: 应用软件版本
+    - **protocolVersion**: 通信协议版本
+  </Accordion>
+  
+  <Accordion title="网络信息字段">
+    - **ipAddress**: 设备IP地址
+    - **networkType**: 网络连接类型
+    - **signalStrength**: 信号强度(dBm)
+    - **carrierId**: 运营商标识
+    - **cellId**: 基站小区ID
+    - **macAddress**: MAC地址
+  </Accordion>
+  
+  <Accordion title="统计信息字段">
+    - **totalOnlineTime**: 累计在线时长(秒)
+    - **messageCount**: 消息总数
+    - **lastMessageTime**: 最后消息时间
+    - **dataUsage**: 数据流量统计
+    - **errorCount**: 错误次数
+    - **successRate**: 成功率百分比
+  </Accordion>
+</AccordionGroup>
+
+## 使用场景
+
+<CardGroup cols={2}>
+  <Card title="设备监控" icon="monitor">
+    实时查看设备状态和健康情况
+  </Card>
+  <Card title="故障诊断" icon="wrench">
+    分析设备连接和通信问题
+  </Card>
+  <Card title="维护管理" icon="tools">
+    制定设备维护和升级计划
+  </Card>
+  <Card title="资产管理" icon="clipboard-list">
+    设备资产信息和位置管理
+  </Card>
+</CardGroup>
+
+## 设备状态监控
+
+```javascript
+// 设备状态变化检测
+class DeviceStatusTracker {
+  constructor(token) {
+    this.token = token;
+    this.statusHistory = new Map();
+  }
+  
+  async trackDevice(productKey, deviceKey) {
+    const currentStatus = await this.getCurrentStatus(productKey, deviceKey);
+    const previousStatus = this.statusHistory.get(deviceKey);
+    
+    if (previousStatus && previousStatus !== currentStatus) {
+      this.onStatusChange(deviceKey, previousStatus, currentStatus);
+    }
+    
+    this.statusHistory.set(deviceKey, currentStatus);
+    return currentStatus;
+  }
+  
+  onStatusChange(deviceKey, oldStatus, newStatus) {
+    console.log(`设备 ${deviceKey} 状态变化: ${oldStatus} -> ${newStatus}`);
+    
+    // 发送告警通知
+    if (newStatus === 'OFFLINE') {
+      this.sendAlert(deviceKey, '设备离线告警');
+    } else if (newStatus === 'ONLINE' && oldStatus === 'OFFLINE') {
+      this.sendNotification(deviceKey, '设备已恢复在线');
+    }
+  }
+}
+```
+
+## 错误处理
+
+| 错误码 | 说明 | 解决方案 |
+|---------|------|----------|
+| 50006 | ProductKey为空 | 提供有效的productKey参数 |
+| 50007 | DeviceKey为空 | 提供有效的deviceKey参数 |
+| 70017 | 产品不存在 | 验证产品存在且可访问 |
+| 70018 | 设备不存在 | 验证设备已注册且存在 |
+| 70089 | 权限受限 | 检查SaaS应用的设备访问权限 |

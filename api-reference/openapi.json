@@ -1,217 +1,1515 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "OpenAPI Plant Store",
-    "description": "A sample API that uses a plant store as an example to demonstrate features in the OpenAPI specification",
-    "license": {
-      "name": "MIT"
+    "title": "移远通信IoT SaaS API",
+    "description": "移远通信IoT SaaS平台开放API接口，提供完整的IoT设备管理、数据通信、订阅管理等功能",
+    "version": "2.0.0",
+    "contact": {
+      "name": "移远通信技术支持",
+      "email": "support@quectel.com"
     },
-    "version": "1.0.0"
+    "license": {
+      "name": "移远通信"
+    }
   },
   "servers": [
     {
-      "url": "http://sandbox.mintlify.com"
+      "url": "https://iot-api.quectelcn.com",
+      "description": "移远通信IoT SaaS API生产环境"
     }
   ],
   "security": [
     {
-      "bearerAuth": []
+      "JWTAuth": []
     }
   ],
   "paths": {
-    "/plants": {
+    "/v2/quecauth/accessKeyAuthrize/accessKeyLogin": {
       "get": {
-        "description": "Returns all plants from the system that the user has access to",
+        "tags": ["token管理API"],
+        "summary": "获取访问令牌",
+        "description": "使用AccessKey/AccessSecret进行身份认证，获取JWT token用于API访问",
+        "operationId": "getAccessToken",
+        "security": [],
         "parameters": [
           {
-            "name": "limit",
+            "name": "grant_type",
             "in": "query",
-            "description": "The maximum number of results to return",
-            "schema": {
-              "type": "integer",
-              "format": "int32"
-            }
+            "required": true,
+            "schema": {"type": "string", "enum": ["password"]},
+            "description": "授权类型，固定值：password"
+          },
+          {
+            "name": "username",
+            "in": "query",
+            "required": true,
+            "schema": {"type": "string"},
+            "description": "由AccessKey和时间戳生成的用户名"
+          },
+          {
+            "name": "password",
+            "in": "query",
+            "required": true,
+            "schema": {"type": "string"},
+            "description": "SHA256(username + AccessSecret)生成的密码"
           }
         ],
         "responses": {
           "200": {
-            "description": "Plant response",
+            "description": "身份认证成功",
             "content": {
               "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/Plant"
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Unexpected error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "description": "Creates a new plant in the store",
-        "requestBody": {
-          "description": "Plant to add to the store",
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/NewPlant"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "plant response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Plant"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "unexpected error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
+                "schema": {"$ref": "#/components/schemas/TokenResponse"}
               }
             }
           }
         }
       }
     },
-    "/plants/{id}": {
-      "delete": {
-        "description": "Deletes a single plant based on the ID supplied",
+    "/v2/quecauth/accessKeyAuthrize/refreshToken": {
+      "get": {
+        "tags": ["token管理API"],
+        "summary": "刷新访问令牌",
+        "description": "使用现有有效token刷新JWT token",
+        "operationId": "refreshAccessToken",
         "parameters": [
           {
-            "name": "id",
-            "in": "path",
-            "description": "ID of plant to delete",
+            "name": "refreshToken",
+            "in": "query",
             "required": true,
-            "schema": {
-              "type": "integer",
-              "format": "int64"
-            }
+            "schema": {"type": "string"},
+            "description": "刷新令牌"
           }
         ],
         "responses": {
-          "204": {
-            "description": "Plant deleted",
-            "content": {}
-          },
-          "400": {
-            "description": "unexpected error",
+          "200": {
+            "description": "令牌刷新成功",
             "content": {
               "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
+                "schema": {"$ref": "#/components/schemas/TokenResponse"}
               }
             }
           }
         }
       }
-    }
-  },
-  "webhooks": {
-    "/plant/webhook": {
+    },
+    "/v2/quecproductmgr/r3/openapi/products": {
+      "get": {
+        "tags": ["产品管理API"],
+        "summary": "查询产品列表",
+        "description": "获取SaaS应用可访问的所有产品列表",
+        "operationId": "listProducts",
+        "parameters": [
+          {
+            "name": "pageNum",
+            "in": "query",
+            "schema": {"type": "integer", "default": 1},
+            "description": "分页码(默认:1)"
+          },
+          {
+            "name": "pageSize", 
+            "in": "query",
+            "schema": {"type": "integer", "default": 20, "maximum": 100},
+            "description": "分页，每页大小(默认:20，最大:100)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "产品列表查询成功",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/ProductListResponse"}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/quecproductmgr/r3/openapi/product/detail": {
+      "get": {
+        "tags": ["产品管理API"],
+        "summary": "查询产品详情",
+        "description": "获取指定产品的详细信息",
+        "operationId": "getProductDetail",
+        "parameters": [
+          {
+            "name": "productKey",
+            "in": "query",
+            "required": true,
+            "schema": {"type": "string"},
+            "description": "产品PK"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "产品详情查询成功",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/ProductDetailResponse"}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/quectsl/openapi/product/export/tslFile": {
+      "get": {
+        "tags": ["物模型API"],
+        "summary": "导出物模型",
+        "description": "获取产品的最新物模型(TSL)JSON格式文件",
+        "operationId": "exportThingModel",
+        "parameters": [
+          {
+            "name": "productKey",
+            "in": "query",
+            "required": true,
+            "schema": {"type": "string"},
+            "description": "产品PK"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "物模型导出成功",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/ThingModelResponse"}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/devicemgr/r3/openapi/device/create": {
       "post": {
-        "description": "Information about a new plant added to the store",
+        "tags": ["设备管理API"],
+        "summary": "添加设备",
+        "description": "创建新的IoT设备",
+        "operationId": "createDevice",
         "requestBody": {
-          "description": "Plant added to the store",
+          "required": true,
           "content": {
             "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/NewPlant"
-              }
+              "schema": {"$ref": "#/components/schemas/DeviceCreateRequest"}
             }
           }
         },
         "responses": {
           "200": {
-            "description": "Return a 200 status to indicate that the data was received successfully"
+            "description": "设备创建成功",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/DeviceCreateResponse"}
+              }
+            }
+          },
+          "400": {
+            "description": "请求参数错误",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/ErrorResponse"}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/devicemgr/r3/openapi/device/createBatch": {
+      "post": {
+        "tags": ["设备管理API"],
+        "summary": "批量添加设备",
+        "description": "批量创建多个设备",
+        "operationId": "createDeviceBatch",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {"$ref": "#/components/schemas/DeviceBatchCreateRequest"}
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "设备批量创建成功",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/DeviceBatchCreateResponse"}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/devicemgr/r3/openapi/product/device/overview": {
+      "get": {
+        "tags": ["设备管理API"],
+        "summary": "查询产品下设备列表",
+        "description": "获取指定产品下的设备列表",
+        "operationId": "listDevices",
+        "parameters": [
+          {
+            "name": "productKey",
+            "in": "query",
+            "required": true,
+            "description": "产品PK",
+            "schema": {"type": "string"}
+          },
+          {
+            "name": "pageNum",
+            "in": "query",
+            "description": "分页码(默认:1)",
+            "schema": {"type": "integer", "default": 1}
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "description": "分页，每页大小(默认:20，最大:100)",
+            "schema": {"type": "integer", "default": 20, "maximum": 100}
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "description": "设备状态过滤",
+            "schema": {"type": "string", "enum": ["ONLINE", "OFFLINE", "UNACTIVE"]}
+          },
+          {
+            "name": "deviceName",
+            "in": "query",
+            "description": "设备名称过滤(部分匹配)",
+            "schema": {"type": "string"}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "设备列表查询成功",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/DeviceListResponse"}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/devicemgr/r3/openapi/device/detail": {
+      "get": {
+        "tags": ["设备管理API"],
+        "summary": "查询设备详情",
+        "description": "获取指定设备的详细信息",
+        "operationId": "getDeviceDetail",
+        "parameters": [
+          {
+            "name": "productKey",
+            "in": "query",
+            "required": true,
+            "schema": {"type": "string"},
+            "description": "产品PK"
+          },
+          {
+            "name": "deviceKey",
+            "in": "query",
+            "required": true,
+            "schema": {"type": "string"},
+            "description": "设备DK"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "设备详情查询成功",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/DeviceDetailResponse"}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/devicemgr/r3/openapi/device/update": {
+      "post": {
+        "tags": ["设备管理API"],
+        "summary": "更新设备信息",
+        "description": "修改设备的基本信息",
+        "operationId": "updateDevice",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {"$ref": "#/components/schemas/DeviceUpdateRequest"}
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "设备更新成功",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/ApiResponse"}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/devicemgr/r3/openapi/device/updateBatch": {
+      "post": {
+        "tags": ["设备管理API"],
+        "summary": "批量更新设备",
+        "description": "批量修改多个设备信息",
+        "operationId": "updateDeviceBatch",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {"$ref": "#/components/schemas/DeviceBatchUpdateRequest"}
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "设备批量更新成功",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/ApiResponse"}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/devicemgr/r3/openapi/device/delete": {
+      "post": {
+        "tags": ["设备管理API"],
+        "summary": "删除设备",
+        "description": "删除指定的IoT设备，此操作不可逆",
+        "operationId": "deleteDevice",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {"$ref": "#/components/schemas/DeviceDeleteRequest"}
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "设备删除成功",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/ApiResponse"}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/deviceshadow/r2/openapi/device/resource": {
+      "get": {
+        "tags": ["设备管理API"],
+        "summary": "查询设备资源信息",
+        "description": "获取设备的资源使用情况和状态信息",
+        "operationId": "getDeviceResource",
+        "parameters": [
+          {
+            "name": "productKey",
+            "in": "query",
+            "required": true,
+            "schema": {"type": "string"},
+            "description": "产品PK"
+          },
+          {
+            "name": "deviceKey",
+            "in": "query",
+            "required": true,
+            "schema": {"type": "string"},
+            "description": "设备DK"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "设备资源信息查询成功",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/DeviceResourceResponse"}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/deviceshadow/r3/openapi/dm/writeData": {
+      "post": {
+        "tags": ["设备上下行消息API"],
+        "summary": "发送下行物模型属性数据",
+        "description": "向设备发送物模型属性设置命令",
+        "operationId": "writePropertyData",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {"$ref": "#/components/schemas/PropertyWriteRequest"}
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "命令发送成功",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/DeviceCommandResponse"}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/deviceshadow/r3/openapi/dm/sendServiceData": {
+      "post": {
+        "tags": ["设备上下行消息API"],
+        "summary": "发送下行物模型服务数据",
+        "description": "向设备发送物模型服务调用命令",
+        "operationId": "invokeService",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {"$ref": "#/components/schemas/ServiceInvokeRequest"}
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "服务调用成功",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/DeviceCommandResponse"}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/deviceshadow/r3/openapi/raw/sendData": {
+      "post": {
+        "tags": ["设备上下行消息API"],
+        "summary": "发送下行透传数据",
+        "description": "向设备发送透传格式的原始数据",
+        "operationId": "sendRawData",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {"$ref": "#/components/schemas/RawDataRequest"}
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "透传数据发送成功",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/DeviceCommandResponse"}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/deviceshadow/r3/openapi/dm/readData": {
+      "post": {
+        "tags": ["设备上下行消息API"],
+        "summary": "读取设备物模型数据",
+        "description": "主动请求读取设备的物模型数据",
+        "operationId": "readDeviceData",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {"$ref": "#/components/schemas/DataReadRequest"}
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "数据读取请求成功",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/DeviceDataResponse"}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/deviceshadow/r1/openapi/device/getlocation": {
+      "get": {
+        "tags": ["设备上下行消息API"],
+        "summary": "查询设备最新位置数据",
+        "description": "获取设备的最新地理位置信息",
+        "operationId": "getDeviceLocation",
+        "parameters": [
+          {
+            "name": "productKey",
+            "in": "query",
+            "required": true,
+            "description": "产品PK",
+            "schema": {"type": "string"}
+          },
+          {
+            "name": "deviceKey",
+            "in": "query",
+            "required": true,
+            "description": "设备DK",
+            "schema": {"type": "string"}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "位置信息查询成功",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/LocationResponse"}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/devicemgr/r1/openapi/product/gateway/subList": {
+      "get": {
+        "tags": ["网关设备管理API"],
+        "summary": "查询网关下子设备列表",
+        "description": "获取指定网关设备管理的所有子设备信息",
+        "operationId": "getGatewaySubDevices",
+        "parameters": [
+          {
+            "name": "productKey",
+            "in": "query",
+            "required": true,
+            "description": "网关产品PK",
+            "schema": {"type": "string"}
+          },
+          {
+            "name": "deviceKey",
+            "in": "query",
+            "required": true,
+            "description": "网关设备DK",
+            "schema": {"type": "string"}
+          },
+          {
+            "name": "pageNum",
+            "in": "query",
+            "description": "分页码(默认:1)",
+            "schema": {"type": "integer", "default": 1}
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "description": "分页，每页大小(默认:10)",
+            "schema": {"type": "integer", "default": 10}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "子设备列表查询成功",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/SubDeviceListResponse"}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/devicemgr/r1/openapi/product/gateway/getGatewayProductByChildDevice": {
+      "get": {
+        "tags": ["网关设备管理API"],
+        "summary": "通过子设备查找网关",
+        "description": "根据子设备的产品PK和设备DK，查找管理该子设备的网关设备信息",
+        "operationId": "getGatewayByChildDevice",
+        "parameters": [
+          {
+            "name": "childProductKey",
+            "in": "query",
+            "required": true,
+            "description": "子设备产品PK",
+            "schema": {"type": "string"}
+          },
+          {
+            "name": "childDeviceKey",
+            "in": "query",
+            "required": true,
+            "description": "子设备DK",
+            "schema": {"type": "string"}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "网关信息查询成功",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/GatewayInfoResponse"}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/devicemgr/r1/openapi/product/gateway/unbind": {
+      "post": {
+        "tags": ["网关设备管理API"],
+        "summary": "解绑子设备",
+        "description": "将子设备从网关设备解绑，断开它们之间的拓扑关系",
+        "operationId": "unbindChildDevice",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {"$ref": "#/components/schemas/UnbindRequest"}
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "子设备解绑成功",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/ApiResponse"}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/quecdatastorage/r1/openapi/device/data/history": {
+      "get": {
+        "tags": ["数据查询API"],
+        "summary": "查询设备历史上下行数据",
+        "description": "获取设备与平台之间的历史通信记录",
+        "operationId": "getDeviceDataHistory",
+        "parameters": [
+          {
+            "name": "productKey",
+            "in": "query",
+            "required": true,
+            "description": "产品PK",
+            "schema": {"type": "string"}
+          },
+          {
+            "name": "deviceKey",
+            "in": "query",
+            "required": true,
+            "description": "设备DK",
+            "schema": {"type": "string"}
+          },
+          {
+            "name": "startTime",
+            "in": "query",
+            "required": true,
+            "description": "开始时间(ISO 8601格式)",
+            "schema": {"type": "string", "format": "date-time"}
+          },
+          {
+            "name": "endTime",
+            "in": "query",
+            "required": true,
+            "description": "结束时间(ISO 8601格式)",
+            "schema": {"type": "string", "format": "date-time"}
+          },
+          {
+            "name": "direction",
+            "in": "query",
+            "description": "消息方向：UP-上行，DOWN-下行",
+            "schema": {"type": "string", "enum": ["UP", "DOWN"]}
+          },
+          {
+            "name": "pageNum",
+            "in": "query",
+            "description": "分页码(默认:1)",
+            "schema": {"type": "integer", "default": 1}
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "description": "分页，每页大小(默认:20，最大:100)",
+            "schema": {"type": "integer", "default": 20, "maximum": 100}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "历史数据查询成功",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/DataHistoryResponse"}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/quecdatastorage/r1/openapi/device/eventdata/history": {
+      "get": {
+        "tags": ["数据查询API"],
+        "summary": "查询设备历史事件",
+        "description": "获取设备生命周期事件、系统通知和告警记录的历史信息",
+        "operationId": "getDeviceEventHistory",
+        "parameters": [
+          {
+            "name": "productKey",
+            "in": "query",
+            "required": true,
+            "description": "产品PK",
+            "schema": {"type": "string"}
+          },
+          {
+            "name": "deviceKey",
+            "in": "query",
+            "required": true,
+            "description": "设备DK",
+            "schema": {"type": "string"}
+          },
+          {
+            "name": "startTime",
+            "in": "query",
+            "required": true,
+            "description": "开始时间(ISO 8601格式)",
+            "schema": {"type": "string", "format": "date-time"}
+          },
+          {
+            "name": "endTime",
+            "in": "query",
+            "required": true,
+            "description": "结束时间(ISO 8601格式)",
+            "schema": {"type": "string", "format": "date-time"}
+          },
+          {
+            "name": "eventType",
+            "in": "query",
+            "description": "事件类型过滤",
+            "schema": {"type": "string"}
+          },
+          {
+            "name": "pageNum",
+            "in": "query",
+            "description": "分页码(默认:1)",
+            "schema": {"type": "integer", "default": 1}
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "description": "分页，每页大小(默认:20，最大:100)",
+            "schema": {"type": "integer", "default": 20, "maximum": 100}
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "事件历史查询成功",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/EventHistoryResponse"}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/quecrule/r1/openapi/queue/create": {
+      "post": {
+        "tags": ["消息订阅管理API"],
+        "summary": "创建消息队列",
+        "description": "创建AMQP消息队列用于接收设备数据和事件",
+        "operationId": "createMessageQueue",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {"$ref": "#/components/schemas/QueueCreateRequest"}
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "队列创建成功",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/QueueResponse"}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/quecrule/r1/openapi/queue/list": {
+      "get": {
+        "tags": ["消息订阅管理API"],
+        "summary": "查询队列列表",
+        "description": "获取所有的消息队列列表",
+        "operationId": "listQueues",
+        "parameters": [
+          {
+            "name": "pageNum",
+            "in": "query",
+            "schema": {"type": "integer", "default": 1},
+            "description": "分页码(默认:1)"
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {"type": "integer", "default": 10},
+            "description": "分页，每页大小(默认:10)"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "队列列表查询成功",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/QueueListResponse"}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/quecrule/r1/openapi/subscribe/create": {
+      "post": {
+        "tags": ["消息订阅管理API"],
+        "summary": "创建订阅",
+        "description": "创建和管理IoT设备事件的消息订阅",
+        "operationId": "createSubscription",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {"$ref": "#/components/schemas/SubscriptionCreateRequest"}
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "订阅创建成功",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/SubscriptionResponse"}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/quecrule/r1/openapi/subscribe/saas": {
+      "post": {
+        "tags": ["消息订阅管理API"],
+        "summary": "创建SaaS订阅",
+        "description": "创建SaaS级别的系统事件订阅",
+        "operationId": "createSaaSSubscription",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {"$ref": "#/components/schemas/SaaSSubscriptionCreateRequest"}
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "SaaS订阅创建成功",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/SubscriptionResponse"}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/quecrule/r1/openapi/subscribe/list": {
+      "get": {
+        "tags": ["消息订阅管理API"],
+        "summary": "查询订阅列表",
+        "description": "获取所有的消息订阅列表",
+        "operationId": "listSubscriptions",
+        "parameters": [
+          {
+            "name": "pageNum",
+            "in": "query",
+            "schema": {"type": "integer", "default": 1},
+            "description": "分页码(默认:1)"
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {"type": "integer", "default": 10},
+            "description": "分页，每页大小(默认:10)"
+          },
+          {
+            "name": "queueName",
+            "in": "query",
+            "schema": {"type": "string"},
+            "description": "队列名称过滤"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "订阅列表查询成功",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/SubscriptionListResponse"}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/quecrule/r1/openapi/subscribe/start": {
+      "post": {
+        "tags": ["消息订阅管理API"],
+        "summary": "启动订阅",
+        "description": "启动指定的消息订阅",
+        "operationId": "startSubscription",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {"$ref": "#/components/schemas/SubscriptionActionRequest"}
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "订阅启动成功",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/ApiResponse"}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/quecrule/r1/openapi/subscribe/stop": {
+      "post": {
+        "tags": ["消息订阅管理API"],
+        "summary": "停止订阅",
+        "description": "停止指定的消息订阅",
+        "operationId": "stopSubscription",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {"$ref": "#/components/schemas/SubscriptionActionRequest"}
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "订阅停止成功",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/ApiResponse"}
+              }
+            }
           }
         }
       }
     }
   },
   "components": {
+    "securitySchemes": {
+      "JWTAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "Authorization",
+        "description": "JWT Token认证，请在Authorization头中直接提供JWT token（不需要Bearer前缀）"
+      }
+    },
     "schemas": {
-      "Plant": {
-        "required": [
-          "name"
-        ],
+      "ApiResponse": {
         "type": "object",
         "properties": {
-          "name": {
-            "description": "The name of the plant",
-            "type": "string"
-          },
-          "tag": {
-            "description": "Tag to specify the type",
-            "type": "string"
+          "code": {"type": "integer", "description": "返回码"},
+          "msg": {"type": "string", "description": "提示信息"},
+          "data": {"type": "object", "description": "响应数据"}
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "code": {"type": "integer", "description": "错误码"},
+          "msg": {"type": "string", "description": "错误信息"},
+          "error": {"type": "string", "description": "详细错误描述"}
+        }
+      },
+      "TokenResponse": {
+        "type": "object",
+        "properties": {
+          "code": {"type": "integer", "example": 200},
+          "msg": {"type": "string", "example": "OK"},
+          "access_token": {"type": "string", "example": "QJWT_eyJhbGciOiJIUzI1NiJ9..."},
+          "token_type": {"type": "string", "example": "jwt"},
+          "expires_in": {"type": "integer", "example": 86400}
+        }
+      },
+      "Product": {
+        "type": "object",
+        "properties": {
+          "productKey": {"type": "string", "description": "产品PK"},
+          "productName": {"type": "string", "description": "产品名称"},
+          "productType": {"type": "string", "enum": ["NORMAL", "GATEWAY", "CHILD"], "description": "产品类型"},
+          "dataFormat": {"type": "string", "enum": ["TSL", "CUSTOM"], "description": "数据格式"},
+          "nodeType": {"type": "string", "enum": ["DIRECT", "GATEWAY"], "description": "节点类型"},
+          "networkType": {"type": "string", "enum": ["CELLULAR", "WIFI", "BLUETOOTH", "ETHERNET"], "description": "网络连接类型"},
+          "createTime": {"type": "string", "format": "date-time", "description": "创建时间"}
+        }
+      },
+      "ProductListResponse": {
+        "type": "object",
+        "properties": {
+          "code": {"type": "integer"},
+          "msg": {"type": "string"},
+          "data": {"type": "array", "items": {"$ref": "#/components/schemas/Product"}},
+          "pageNum": {"type": "integer"},
+          "pageSize": {"type": "integer"},
+          "total": {"type": "integer"}
+        }
+      },
+      "ProductDetailResponse": {
+        "type": "object",
+        "properties": {
+          "code": {"type": "integer"},
+          "msg": {"type": "string"},
+          "data": {"$ref": "#/components/schemas/Product"}
+        }
+      },
+      "ThingModelResponse": {
+        "type": "object",
+        "properties": {
+          "code": {"type": "integer"},
+          "msg": {"type": "string"},
+          "data": {
+            "type": "object",
+            "properties": {
+              "properties": {"type": "array", "items": {"type": "object"}, "description": "物模型属性"},
+              "services": {"type": "array", "items": {"type": "object"}, "description": "物模型服务"},
+              "events": {"type": "array", "items": {"type": "object"}, "description": "物模型事件"}
+            }
           }
         }
       },
-      "NewPlant": {
-        "allOf": [
-          {
-            "$ref": "#/components/schemas/Plant"
-          },
-          {
-            "required": [
-              "id"
-            ],
+      "DeviceCreateRequest": {
+        "type": "object",
+        "required": ["productKey", "deviceName"],
+        "properties": {
+          "productKey": {"type": "string", "description": "产品PK"},
+          "deviceName": {"type": "string", "description": "设备名称"},
+          "deviceKey": {"type": "string", "description": "设备DK(不传则自动生成)"},
+          "deviceSecret": {"type": "string", "description": "设备DS(不传则自动生成)"}
+        }
+      },
+      "DeviceBatchCreateRequest": {
+        "type": "object",
+        "required": ["productKey", "devices"],
+        "properties": {
+          "productKey": {"type": "string", "description": "产品PK"},
+          "devices": {
+            "type": "array",
+            "items": {"$ref": "#/components/schemas/DeviceCreateRequest"},
+            "description": "设备列表"
+          }
+        }
+      },
+      "DeviceCreateResponse": {
+        "type": "object",
+        "properties": {
+          "code": {"type": "integer"},
+          "msg": {"type": "string"},
+          "data": {
             "type": "object",
             "properties": {
-              "id": {
-                "description": "Identification number of the plant",
-                "type": "integer",
-                "format": "int64"
+              "deviceKey": {"type": "string", "description": "设备DK"},
+              "deviceSecret": {"type": "string", "description": "设备DS"}
+            }
+          }
+        }
+      },
+      "DeviceBatchCreateResponse": {
+        "type": "object",
+        "properties": {
+          "code": {"type": "integer"},
+          "msg": {"type": "string"},
+          "data": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "deviceKey": {"type": "string", "description": "设备DK"},
+                "deviceSecret": {"type": "string", "description": "设备DS"},
+                "deviceName": {"type": "string", "description": "设备名称"}
               }
             }
           }
-        ]
+        }
       },
-      "Error": {
-        "required": [
-          "error",
-          "message"
-        ],
+      "DeviceUpdateRequest": {
         "type": "object",
+        "required": ["productKey", "deviceKey"],
         "properties": {
-          "error": {
-            "type": "integer",
-            "format": "int32"
-          },
-          "message": {
-            "type": "string"
+          "productKey": {"type": "string", "description": "产品PK"},
+          "deviceKey": {"type": "string", "description": "设备DK"},
+          "deviceName": {"type": "string", "description": "设备名称"},
+          "sn": {"type": "string", "description": "设备SN"}
+        }
+      },
+      "DeviceBatchUpdateRequest": {
+        "type": "object",
+        "required": ["devices"],
+        "properties": {
+          "devices": {
+            "type": "array",
+            "items": {"$ref": "#/components/schemas/DeviceUpdateRequest"},
+            "description": "设备列表"
           }
         }
-      }
-    },
-    "securitySchemes": {
-      "bearerAuth": {
-        "type": "http",
-        "scheme": "bearer"
+      },
+      "DeviceDeleteRequest": {
+        "type": "object",
+        "required": ["productKey", "deviceKey"],
+        "properties": {
+          "productKey": {"type": "string", "description": "产品PK"},
+          "deviceKey": {"type": "string", "description": "设备DK"}
+        }
+      },
+      "DeviceListResponse": {
+        "type": "object",
+        "properties": {
+          "code": {"type": "integer"},
+          "msg": {"type": "string"},
+          "data": {"type": "array", "items": {"$ref": "#/components/schemas/DeviceInfo"}},
+          "pageNum": {"type": "integer"},
+          "pageSize": {"type": "integer"},
+          "total": {"type": "integer"},
+          "pages": {"type": "integer"}
+        }
+      },
+      "DeviceDetailResponse": {
+        "type": "object",
+        "properties": {
+          "code": {"type": "integer"},
+          "msg": {"type": "string"},
+          "data": {"$ref": "#/components/schemas/DeviceInfo"}
+        }
+      },
+      "DeviceInfo": {
+        "type": "object",
+        "properties": {
+          "deviceKey": {"type": "string", "description": "设备DK"},
+          "deviceName": {"type": "string", "description": "设备名称"},
+          "productKey": {"type": "string", "description": "产品PK"},
+          "status": {"type": "string", "description": "设备状态", "enum": ["ONLINE", "OFFLINE", "UNACTIVE"]},
+          "lastOnlineTime": {"type": "string", "format": "date-time", "description": "最后一次上线时间"},
+          "createTime": {"type": "string", "format": "date-time", "description": "创建时间"}
+        }
+      },
+      "DeviceResourceResponse": {
+        "type": "object",
+        "properties": {
+          "code": {"type": "integer"},
+          "msg": {"type": "string"},
+          "data": {
+            "type": "object",
+            "properties": {
+              "cpuUsage": {"type": "number", "description": "CPU使用率"},
+              "memoryUsage": {"type": "number", "description": "内存使用率"},
+              "diskUsage": {"type": "number", "description": "磁盘使用率"},
+              "networkStatus": {"type": "string", "description": "网络状态"}
+            }
+          }
+        }
+      },
+      "PropertyWriteRequest": {
+        "type": "object",
+        "required": ["productKey", "deviceKey", "data"],
+        "properties": {
+          "productKey": {"type": "string", "description": "产品PK"},
+          "deviceKey": {"type": "string", "description": "设备DK"},
+          "data": {"type": "object", "description": "要写入的属性数据"}
+        }
+      },
+      "ServiceInvokeRequest": {
+        "type": "object",
+        "required": ["productKey", "deviceKey", "identifier", "data"],
+        "properties": {
+          "productKey": {"type": "string", "description": "产品PK"},
+          "deviceKey": {"type": "string", "description": "设备DK"},
+          "identifier": {"type": "string", "description": "服务标识符"},
+          "data": {"type": "object", "description": "服务调用参数"}
+        }
+      },
+      "RawDataRequest": {
+        "type": "object",
+        "required": ["productKey", "deviceKey", "data"],
+        "properties": {
+          "productKey": {"type": "string", "description": "产品PK"},
+          "deviceKey": {"type": "string", "description": "设备DK"},
+          "data": {"type": "string", "description": "Base64编码的透传数据"}
+        }
+      },
+      "DataReadRequest": {
+        "type": "object",
+        "required": ["productKey", "deviceKey", "identifier"],
+        "properties": {
+          "productKey": {"type": "string", "description": "产品PK"},
+          "deviceKey": {"type": "string", "description": "设备DK"},
+          "identifier": {"type": "array", "items": {"type": "string"}, "description": "要读取的属性标识符列表"}
+        }
+      },
+      "DeviceCommandResponse": {
+        "type": "object",
+        "properties": {
+          "code": {"type": "integer"},
+          "msg": {"type": "string"},
+          "data": {
+            "type": "object",
+            "properties": {
+              "messageId": {"type": "string", "description": "消息ID"}
+            }
+          }
+        }
+      },
+      "DeviceDataResponse": {
+        "type": "object",
+        "properties": {
+          "code": {"type": "integer"},
+          "msg": {"type": "string"},
+          "data": {"type": "object", "description": "设备属性数据"}
+        }
+      },
+      "LocationResponse": {
+        "type": "object",
+        "properties": {
+          "code": {"type": "integer"},
+          "msg": {"type": "string"},
+          "data": {
+            "type": "object",
+            "properties": {
+              "longitude": {"type": "number", "description": "经度"},
+              "latitude": {"type": "number", "description": "纬度"},
+              "altitude": {"type": "number", "description": "海拔高度"},
+              "timestamp": {"type": "string", "format": "date-time", "description": "位置更新时间"}
+            }
+          }
+        }
+      },
+      "SubDeviceListResponse": {
+        "type": "object",
+        "properties": {
+          "code": {"type": "integer"},
+          "msg": {"type": "string"},
+          "data": {"type": "array", "items": {"$ref": "#/components/schemas/SubDeviceInfo"}},
+          "pageNum": {"type": "integer"},
+          "pageSize": {"type": "integer"},
+          "total": {"type": "integer"},
+          "pages": {"type": "integer"}
+        }
+      },
+      "SubDeviceInfo": {
+        "type": "object",
+        "properties": {
+          "deviceKey": {"type": "string", "description": "子设备DK"},
+          "deviceName": {"type": "string", "description": "子设备名称"},
+          "productKey": {"type": "string", "description": "子设备产品PK"},
+          "deviceStatus": {"type": "integer", "description": "设备状态：1在线，0离线"},
+          "bindTime": {"type": "string", "format": "date-time", "description": "绑定到网关的时间"}
+        }
+      },
+      "GatewayInfoResponse": {
+        "type": "object",
+        "properties": {
+          "code": {"type": "integer"},
+          "msg": {"type": "string"},
+          "data": {
+            "type": "object",
+            "properties": {
+              "gatewayProductKey": {"type": "string", "description": "网关产品PK"},
+              "gatewayDeviceKey": {"type": "string", "description": "网关设备DK"},
+              "gatewayDeviceName": {"type": "string", "description": "网关设备名称"},
+              "bindTime": {"type": "string", "format": "date-time", "description": "绑定时间"}
+            }
+          }
+        }
+      },
+      "UnbindRequest": {
+        "type": "object",
+        "required": ["gatewayProductKey", "gatewayDeviceKey", "childProductKey", "childDeviceKey"],
+        "properties": {
+          "gatewayProductKey": {"type": "string", "description": "网关产品PK"},
+          "gatewayDeviceKey": {"type": "string", "description": "网关设备DK"},
+          "childProductKey": {"type": "string", "description": "子设备产品PK"},
+          "childDeviceKey": {"type": "string", "description": "子设备DK"}
+        }
+      },
+      "DataHistoryResponse": {
+        "type": "object",
+        "properties": {
+          "code": {"type": "integer"},
+          "msg": {"type": "string"},
+          "data": {"type": "array", "items": {"$ref": "#/components/schemas/DataRecord"}},
+          "pageNum": {"type": "integer"},
+          "pageSize": {"type": "integer"},
+          "total": {"type": "integer"},
+          "pages": {"type": "integer"}
+        }
+      },
+      "DataRecord": {
+        "type": "object",
+        "properties": {
+          "messageId": {"type": "string", "description": "消息ID"},
+          "timestamp": {"type": "string", "format": "date-time", "description": "时间戳"},
+          "direction": {"type": "string", "enum": ["UP", "DOWN"], "description": "消息方向"},
+          "data": {"type": "object", "description": "消息数据内容"}
+        }
+      },
+      "EventHistoryResponse": {
+        "type": "object",
+        "properties": {
+          "code": {"type": "integer"},
+          "msg": {"type": "string"},
+          "data": {"type": "array", "items": {"$ref": "#/components/schemas/EventRecord"}},
+          "pageNum": {"type": "integer"},
+          "pageSize": {"type": "integer"},
+          "total": {"type": "integer"},
+          "pages": {"type": "integer"}
+        }
+      },
+      "EventRecord": {
+        "type": "object",
+        "properties": {
+          "messageId": {"type": "string", "description": "事件消息ID"},
+          "timestamp": {"type": "string", "format": "date-time", "description": "事件发生时间"},
+          "eventType": {"type": "string", "description": "事件类型"},
+          "severity": {"type": "string", "enum": ["INFO", "WARNING", "ERROR"], "description": "事件严重程度"},
+          "eventData": {"type": "object", "description": "事件数据内容"}
+        }
+      },
+      "QueueCreateRequest": {
+        "type": "object",
+        "required": ["queueName"],
+        "properties": {
+          "queueName": {"type": "string", "description": "队列名称，最大长度64字符"},
+          "queueDesc": {"type": "string", "description": "队列描述"}
+        }
+      },
+      "QueueResponse": {
+        "type": "object",
+        "properties": {
+          "code": {"type": "integer"},
+          "msg": {"type": "string"},
+          "data": {
+            "type": "object",
+            "properties": {
+              "queueName": {"type": "string", "description": "队列名称"},
+              "amqpConfig": {"type": "object", "description": "AMQP连接配置"}
+            }
+          }
+        }
+      },
+      "QueueListResponse": {
+        "type": "object",
+        "properties": {
+          "code": {"type": "integer"},
+          "msg": {"type": "string"},
+          "data": {"type": "array", "items": {"$ref": "#/components/schemas/QueueInfo"}},
+          "pageNum": {"type": "integer"},
+          "pageSize": {"type": "integer"},
+          "total": {"type": "integer"},
+          "pages": {"type": "integer"}
+        }
+      },
+      "QueueInfo": {
+        "type": "object",
+        "properties": {
+          "queueId": {"type": "string", "description": "队列ID"},
+          "queueName": {"type": "string", "description": "队列名称"},
+          "queueDesc": {"type": "string", "description": "队列描述"},
+          "status": {"type": "string", "description": "队列状态"},
+          "createTime": {"type": "string", "format": "date-time", "description": "创建时间"}
+        }
+      },
+      "SubscriptionCreateRequest": {
+        "type": "object",
+        "required": ["queueName", "subscriptionName", "type", "eventTypes"],
+        "properties": {
+          "queueName": {"type": "string", "description": "队列名称"},
+          "subscriptionName": {"type": "string", "description": "订阅名，最大长度128字符"},
+          "type": {"type": "string", "enum": ["PRODUCT", "DEVICE"], "description": "订阅类型"},
+          "productKeys": {"type": "array", "items": {"type": "string"}, "description": "产品PK列表(产品订阅时必填)"},
+          "deviceKeys": {"type": "array", "items": {"type": "string"}, "description": "设备DK列表(设备订阅时必填)"},
+          "eventTypes": {"type": "array", "items": {"type": "string"}, "description": "事件类型列表"}
+        }
+      },
+      "SubscriptionResponse": {
+        "type": "object",
+        "properties": {
+          "code": {"type": "integer"},
+          "msg": {"type": "string"},
+          "data": {
+            "type": "object",
+            "properties": {
+              "subscriptionId": {"type": "string", "description": "订阅ID"},
+              "subscriptionName": {"type": "string", "description": "订阅名称"},
+              "status": {"type": "string", "description": "订阅状态"}
+            }
+          }
+        }
+      },
+      "SaaSSubscriptionCreateRequest": {
+        "type": "object",
+        "required": ["queueName", "subscriptionName", "messageType"],
+        "properties": {
+          "queueName": {"type": "string", "description": "队列名称"},
+          "subscriptionName": {"type": "string", "description": "订阅名，最大长度128字符"},
+          "messageType": {"type": "integer", "description": "消息类型，101-产品信息变更，102-设备信息变更等"}
+        }
+      },
+      "SubscriptionListResponse": {
+        "type": "object",
+        "properties": {
+          "code": {"type": "integer"},
+          "msg": {"type": "string"},
+          "data": {"type": "array", "items": {"$ref": "#/components/schemas/SubscriptionInfo"}},
+          "pageNum": {"type": "integer"},
+          "pageSize": {"type": "integer"},
+          "total": {"type": "integer"},
+          "pages": {"type": "integer"}
+        }
+      },
+      "SubscriptionInfo": {
+        "type": "object",
+        "properties": {
+          "subscriptionId": {"type": "string", "description": "订阅ID"},
+          "subscriptionName": {"type": "string", "description": "订阅名称"},
+          "queueName": {"type": "string", "description": "队列名称"},
+          "type": {"type": "string", "description": "订阅类型"},
+          "status": {"type": "string", "description": "订阅状态"},
+          "createTime": {"type": "string", "format": "date-time", "description": "创建时间"}
+        }
+      },
+      "SubscriptionActionRequest": {
+        "type": "object",
+        "required": ["subscriptionId"],
+        "properties": {
+          "subscriptionId": {"type": "string", "description": "订阅规则ID"}
+        }
       }
     }
-  }
+  },
+  "tags": [
+    {"name": "token管理API", "description": "身份认证和JWT令牌管理"},
+    {"name": "产品管理API", "description": "产品的生命周期和配置管理"},
+    {"name": "物模型API", "description": "物模型(TSL)的管理和导出"},
+    {"name": "设备管理API", "description": "设备的创建、查询、更新、删除等基本管理功能"},
+    {"name": "设备上下行消息API", "description": "设备数据通信，包括属性设置、服务调用、透传数据等"},
+    {"name": "网关设备管理API", "description": "网关设备和子设备的拓扑关系管理"},
+    {"name": "数据查询API", "description": "设备历史数据和事件的查询功能"},
+    {"name": "消息订阅管理API", "description": "消息队列和订阅的创建、管理功能"}
+  ]
 }

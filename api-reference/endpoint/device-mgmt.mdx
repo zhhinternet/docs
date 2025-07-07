@@ -1,0 +1,336 @@
+---
+title: '设备管理API'
+openapi: 'GET /v2/devicemgr/r3/openapi/product/device/overview'
+---
+
+## 查询产品下设备列表
+
+查询指定产品下的设备列表，包含详细的状态信息、连接数据和生命周期元数据。此接口是设备车队管理和监控的核心功能。
+
+## 设备状态类型
+
+<CardGroup cols={3}>
+  <Card title="在线" icon="circle-check" color="#22c55e">
+    设备已连接并正在通信
+  </Card>
+  <Card title="离线" icon="circle-xmark" color="#ef4444">
+    设备已注册但当前未连接
+  </Card>
+  <Card title="未激活" icon="circle-pause" color="#f59e0b">
+    设备已注册但从未激活
+  </Card>
+</CardGroup>
+
+## 过滤选项
+
+按各种条件过滤设备：
+
+- **设备状态**: `ONLINE`、`OFFLINE`、`UNACTIVE`
+- **设备名称**: 部分名称匹配
+- **注册日期**: 日期范围过滤
+- **最后活动**: 基于活动的过滤
+
+## 实时状态监控
+
+<Info>
+设备状态实时更新。使用WebSocket订阅或AMQP消息队列获取即时状态变更通知。
+</Info>
+
+## 代码示例
+
+<CodeGroup>
+
+```javascript JavaScript
+async function listDevices(token, productKey, options = {}) {
+  const {
+    pageNum = 1,
+    pageSize = 20,
+    status,
+    deviceName,
+    startDate,
+    endDate
+  } = options;
+  
+  const params = new URLSearchParams({
+    productKey,
+    pageNum: pageNum.toString(),
+    pageSize: pageSize.toString()
+  });
+  
+  // 添加可选过滤器
+  if (status) params.append('status', status);
+  if (deviceName) params.append('deviceName', deviceName);
+  if (startDate) params.append('startDate', startDate);
+  if (endDate) params.append('endDate', endDate);
+  
+  const response = await fetch(
+    `https://iot-api.quectelcn.com/v2/devicemgr/r3/openapi/product/device/overview?${params}`,
+    {
+      headers: {
+        'Authorization': token,
+        'Content-Type': 'application/json'
+      }
+    }
+  );
+  
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  }
+  
+  return await response.json();
+}
+
+// 使用示例
+const allDevices = await listDevices(token, 'p12345');
+const onlineDevices = await listDevices(token, 'p12345', { status: 'ONLINE' });
+const recentDevices = await listDevices(token, 'p12345', {
+  startDate: '2023-12-01',
+  endDate: '2023-12-31'
+});
+```
+
+```python Python
+import requests
+from typing import Optional, Dict, Any
+
+def list_devices(
+    token: str,
+    product_key: str,
+    page_num: int = 1,
+    page_size: int = 20,
+    status: Optional[str] = None,
+    device_name: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None
+) -> Dict[Any, Any]:
+    """
+    查询产品下设备列表
+    
+    Args:
+        token: JWT认证token
+        product_key: 产品PK
+        page_num: 分页码(从1开始)
+        page_size: 每页数量(最大100)
+        status: 按设备状态过滤(ONLINE/OFFLINE/UNACTIVE)
+        device_name: 按设备名称过滤(部分匹配)
+        start_date: 按注册开始日期过滤(YYYY-MM-DD)
+        end_date: 按注册结束日期过滤(YYYY-MM-DD)
+    
+    Returns:
+        包含分页元数据的设备列表响应
+    """
+    url = "https://iot-api.quectelcn.com/v2/devicemgr/r3/openapi/product/device/overview"
+    
+    params = {
+        "productKey": product_key,
+        "pageNum": page_num,
+        "pageSize": min(page_size, 100)  # 强制执行最大限制
+    }
+    
+    # 添加可选过滤器
+    if status:
+        params["status"] = status
+    if device_name:
+        params["deviceName"] = device_name
+    if start_date:
+        params["startDate"] = start_date
+    if end_date:
+        params["endDate"] = end_date
+    
+    headers = {
+        "Authorization": token,
+        "Content-Type": "application/json"
+    }
+    
+    response = requests.get(url, params=params, headers=headers)
+    response.raise_for_status()
+    
+    return response.json()
+
+# 使用示例
+devices = list_devices(token, "p12345", status="ONLINE", page_size=50)
+```
+
+```curl cURL
+# 查询产品下所有设备
+curl -X GET "https://iot-api.quectelcn.com/v2/devicemgr/r3/openapi/product/device/overview?productKey=p12345&pageNum=1&pageSize=20" \
+  -H "Authorization: YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json"
+
+# 仅过滤在线设备
+curl -X GET "https://iot-api.quectelcn.com/v2/devicemgr/r3/openapi/product/device/overview?productKey=p12345&status=ONLINE" \
+  -H "Authorization: YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json"
+```
+
+</CodeGroup>
+
+## 设备管理操作
+
+此API专注于设备列表查询和状态监控。如需执行设备CRUD操作，请参考相关接口：
+
+<CardGroup cols={3}>
+  <Card title="添加设备" href="/api-reference/endpoint/device-create">
+    创建单个或批量添加设备
+  </Card>
+  <Card title="更新设备" href="/api-reference/endpoint/device-update">
+    修改设备信息和配置
+  </Card>
+  <Card title="删除设备" href="/api-reference/endpoint/device-delete">
+    删除设备及相关数据
+  </Card>
+</CardGroup>
+
+## 响应示例
+
+### 设备列表响应
+
+```json
+{
+  "code": 200,
+  "msg": "OK",
+  "data": [
+    {
+      "deviceKey": "d67890abcdef",
+      "deviceName": "传感器-1楼-A",
+      "productKey": "p12345",
+      "status": "ONLINE",
+      "lastOnlineTime": "2023-12-15T14:30:25Z",
+      "createTime": "2023-12-01T09:15:00Z",
+      "activateTime": "2023-12-01T09:20:00Z",
+      "firmwareVersion": "v2.1.3",
+      "location": {
+        "latitude": 31.2304,
+        "longitude": 121.4737,
+        "address": "上海, 中国"
+      },
+      "metadata": {
+        "serialNumber": "SN202312001",
+        "hardwareVersion": "v1.2",
+        "manufacturer": "移远通信"
+      }
+    }
+  ],
+  "pageNum": 1,
+  "pageSize": 20,
+  "total": 1250,
+  "pages": 63
+}
+```
+
+## 高级过滤
+
+<Tabs>
+  <Tab title="状态过滤">
+    ```javascript
+    // 获取仅在线设备
+    const onlineDevices = await listDevices(token, productKey, {
+      status: 'ONLINE'
+    });
+    
+    // 获取未激活设备用于清理
+    const inactiveDevices = await listDevices(token, productKey, {
+      status: 'UNACTIVE'
+    });
+    ```
+  </Tab>
+  
+  <Tab title="日期范围过滤">
+    ```javascript
+    // 获取最近30天注册的设备
+    const recentDate = new Date();
+    recentDate.setDate(recentDate.getDate() - 30);
+    
+    const recentDevices = await listDevices(token, productKey, {
+      startDate: recentDate.toISOString().split('T')[0],
+      endDate: new Date().toISOString().split('T')[0]
+    });
+    ```
+  </Tab>
+  
+  <Tab title="名称搜索">
+    ```javascript
+    // 按名称模式搜索设备
+    const sensorDevices = await listDevices(token, productKey, {
+      deviceName: '传感器'  // 部分匹配
+    });
+    ```
+  </Tab>
+</Tabs>
+
+## 使用场景
+
+<AccordionGroup>
+  <Accordion title="设备车队监控">
+    通过实时状态更新监控整个设备车队的健康状况和状态。
+  </Accordion>
+  
+  <Accordion title="维护计划">
+    识别离线或未激活的设备，可能需要维护或更换。
+  </Accordion>
+  
+  <Accordion title="资产管理">
+    跟踪设备生命周期、位置和固件版本，用于合规性和库存管理。
+  </Accordion>
+  
+  <Accordion title="容量规划">
+    分析设备注册模式和增长趋势，进行基础设施规划。
+  </Accordion>
+</AccordionGroup>
+
+## 性能优化
+
+<Warning>
+对于大型设备车队(>10,000设备)，建议：
+- 使用较小的页面大小(20-50项)
+- 实施客户端缓存
+- 使用状态过滤器减少数据传输
+- 利用AMQP订阅获取实时更新
+</Warning>
+
+## 错误处理
+
+| 错误码 | 描述 | 解决方案 |
+|--------|------|----------|
+| 50006 | ProductKey为空 | 提供有效的productKey参数 |
+| 70017 | 产品不存在 | 验证产品存在且可访问 |
+| 70089 | 权限受限 | 检查SaaS应用产品授权 |
+| 50005 | 参数验证错误 | 验证分页和过滤参数 |
+
+## 请求参数
+
+| 参数名 | 类型 | 必填 | 说明 |
+|--------|------|------|------|
+| productKey | String | 是 | 产品PK |
+| pageNum | Integer | 否 | 分页码(默认:1) |
+| pageSize | Integer | 否 | 分页，每页大小(默认:20，最大:100) |
+| status | String | 否 | 设备状态过滤 |
+| deviceName | String | 否 | 设备名称过滤(部分匹配) |
+| startDate | String | 否 | 注册开始日期(YYYY-MM-DD) |
+| endDate | String | 否 | 注册结束日期(YYYY-MM-DD) |
+
+## 响应参数
+
+| 参数名 | 类型 | 说明 |
+|--------|------|------|
+| code | Integer | 返回码 |
+| msg | String | 提示信息 |
+| data | Array | 设备列表数据 |
+| pageNum | Integer | 当前页数 |
+| pageSize | Integer | 每页数量 |
+| total | Integer | 总数 |
+| pages | Integer | 总页数 |
+
+### 设备信息字段
+
+| 字段名 | 类型 | 说明 |
+|--------|------|------|
+| deviceKey | String | 设备DK |
+| deviceName | String | 设备名称 |
+| productKey | String | 产品PK |
+| status | String | 设备状态：1在线，0离线 |
+| lastOnlineTime | String | 最后一次上线时间 |
+| createTime | String | 创建时间 |
+| activateTime | String | 设备激活时间 |
+| isActive | Integer | 是否激活：0-未激活，1-激活 |
+| isAuth | Integer | 二次认证：0-未认证，1-已认证 |

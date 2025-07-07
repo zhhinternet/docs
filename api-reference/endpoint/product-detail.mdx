@@ -1,0 +1,272 @@
+---
+title: '查询产品详情'
+openapi: 'GET /v2/quecproductmgr/r3/openapi/product/detail'
+---
+
+## 产品详情概述
+
+获取指定产品的详细信息，包括产品配置、物模型信息、设备数量统计和产品状态等完整数据。
+
+## 产品信息类型
+
+<CardGroup cols={2}>
+  <Card title="基本信息" icon="info-circle">
+    产品名称、创建时间、产品类型等基础属性
+  </Card>
+  <Card title="技术规格" icon="microchip">
+    数据格式、网络类型、节点类型等技术参数
+  </Card>
+  <Card title="统计数据" icon="chart-bar">
+    设备数量、在线设备数、活跃度等统计信息
+  </Card>
+  <Card title="配置信息" icon="cog">
+    物模型配置、安全策略、权限设置等配置项
+  </Card>
+</CardGroup>
+
+## 产品类型详解
+
+<Tabs>
+  <Tab title="普通设备 (NORMAL)">
+    **直连设备**: 直接连接到IoT平台的标准设备
+    - 支持MQTT、CoAP、HTTP协议
+    - 独立的设备身份认证
+    - 完整的生命周期管理
+    - 适用于传感器、执行器等单体设备
+  </Tab>
+  
+  <Tab title="网关设备 (GATEWAY)">
+    **网关设备**: 作为其他设备连接代理的设备
+    - 管理多个子设备的连接
+    - 协议转换和数据汇聚
+    - 子设备拓扑关系管理
+    - 适用于Zigbee网关、LoRa网关等
+  </Tab>
+  
+  <Tab title="子设备 (CHILD)">
+    **子设备**: 通过网关连接到平台的设备
+    - 通过网关进行数据通信
+    - 依赖网关的连接状态
+    - 简化的设备管理流程
+    - 适用于Zigbee节点、LoRa节点等
+  </Tab>
+</Tabs>
+
+## 代码示例
+
+<CodeGroup>
+
+```javascript JavaScript
+async function getProductDetail(token, productKey) {
+  const response = await fetch(
+    `https://iot-api.quectelcn.com/v2/quecproductmgr/r3/openapi/product/detail?productKey=${productKey}`,
+    {
+      headers: {
+        'Authorization': token,
+        'Content-Type': 'application/json'
+      }
+    }
+  );
+  
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  }
+  
+  return await response.json();
+}
+
+// 使用示例
+const productDetail = await getProductDetail(token, 'p12345');
+console.log('产品信息:', productDetail.data);
+
+// 检查产品类型并执行相应逻辑
+if (productDetail.data.productType === 'GATEWAY') {
+  console.log('这是一个网关产品，可以管理子设备');
+  // 获取网关下的子设备列表
+} else if (productDetail.data.productType === 'NORMAL') {
+  console.log('这是普通设备产品');
+  // 执行普通设备相关逻辑
+}
+```
+
+```python Python
+import requests
+
+def get_product_detail(token, product_key):
+    """
+    获取产品详细信息
+    
+    Args:
+        token: JWT认证令牌
+        product_key: 产品PK
+        
+    Returns:
+        产品详细信息
+    """
+    url = "https://iot-api.quectelcn.com/v2/quecproductmgr/r3/openapi/product/detail"
+    
+    params = {
+        "productKey": product_key
+    }
+    
+    headers = {
+        "Authorization": token,
+        "Content-Type": "application/json"
+    }
+    
+    response = requests.get(url, params=params, headers=headers)
+    response.raise_for_status()
+    
+    return response.json()
+
+# 使用示例
+product_detail = get_product_detail(token, "p12345")
+product = product_detail["data"]
+
+print(f"产品名称: {product['productName']}")
+print(f"产品类型: {product['productType']}")
+print(f"数据格式: {product['dataFormat']}")
+print(f"网络类型: {product['networkType']}")
+
+# 根据产品类型处理不同逻辑
+if product["productType"] == "GATEWAY":
+    print("这是网关产品，支持子设备管理")
+elif product["productType"] == "NORMAL":
+    print("这是普通设备产品")
+```
+
+```curl cURL
+# 查询产品详情
+curl -X GET "https://iot-api.quectelcn.com/v2/quecproductmgr/r3/openapi/product/detail?productKey=p12345" \
+  -H "Authorization: YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json"
+```
+
+</CodeGroup>
+
+## 响应示例
+
+```json
+{
+  "code": 200,
+  "msg": "OK",
+  "data": {
+    "productKey": "p12345",
+    "productName": "智能温湿度传感器",
+    "productType": "NORMAL",
+    "dataFormat": "TSL",
+    "nodeType": "DIRECT",
+    "networkType": "CELLULAR",
+    "createTime": "2023-12-01T10:30:00Z",
+    "deviceCount": 1250,
+    "onlineDeviceCount": 892,
+    "status": "PUBLISHED",
+    "description": "工业级温湿度监测传感器，支持4G-LTE连接",
+    "manufacturer": "移远通信",
+    "model": "QT-TH-001",
+    "version": "1.2.0",
+    "certification": ["CE", "FCC", "CCC"],
+    "features": {
+      "batteryLife": "5年",
+      "operatingTemp": "-40°C to +85°C",
+      "accuracy": "±0.3°C, ±2%RH",
+      "ipRating": "IP67"
+    },
+    "tslVersion": "v1.0.2",
+    "securityPolicy": {
+      "authType": "PSK",
+      "encryption": "AES256"
+    },
+    "quota": {
+      "maxDevices": 10000,
+      "usedDevices": 1250,
+      "remainingDevices": 8750
+    }
+  }
+}
+```
+
+## 产品配置详解
+
+<AccordionGroup>
+  <Accordion title="数据格式 (dataFormat)">
+    **TSL格式**: 使用标准化的物模型（Thing Specification Language）
+    - 结构化的属性、服务、事件定义
+    - 支持数据类型验证和转换
+    - 便于平台统一处理和展示
+    
+    **CUSTOM格式**: 自定义数据格式
+    - 透传原始数据，不进行解析
+    - 需要应用层自行处理数据格式
+    - 适用于特殊协议或二进制数据
+  </Accordion>
+  
+  <Accordion title="网络类型 (networkType)">
+    **CELLULAR**: 蜂窝网络连接
+    - 2G/3G/4G/5G网络
+    - 广域覆盖，适合移动场景
+    - 运营商计费模式
+    
+    **WIFI**: Wi-Fi网络连接
+    - 2.4GHz/5GHz频段
+    - 局域网部署，成本较低
+    - 依赖WiFi基础设施
+    
+    **BLUETOOTH**: 蓝牙连接
+    - 近距离通信
+    - 低功耗特性
+    - 适合可穿戴设备
+    
+    **ETHERNET**: 有线以太网
+    - 稳定可靠连接
+    - 高带宽传输
+    - 适合固定部署场景
+  </Accordion>
+  
+  <Accordion title="节点类型 (nodeType)">
+    **DIRECT**: 直连节点
+    - 设备直接连接到IoT平台
+    - 独立的设备身份和连接
+    - 完整的设备管理功能
+    
+    **GATEWAY**: 网关节点
+    - 作为其他设备的连接代理
+    - 管理子设备的连接和通信
+    - 支持协议转换和数据汇聚
+  </Accordion>
+</AccordionGroup>
+
+## 使用场景
+
+<CardGroup cols={2}>
+  <Card title="设备配置" icon="wrench">
+    在设备注册前查看产品规格，确保设备配置正确
+  </Card>
+  <Card title="应用开发" icon="code">
+    获取物模型版本和数据格式，指导应用开发
+  </Card>
+  <Card title="容量规划" icon="chart-line">
+    查看设备配额使用情况，进行容量规划
+  </Card>
+  <Card title="故障排查" icon="bug">
+    检查产品状态和配置，辅助故障诊断
+  </Card>
+</CardGroup>
+
+## 错误处理
+
+| 错误码 | 说明 | 解决方案 |
+|---------|------|----------|
+| 50006 | ProductKey为空 | 提供有效的productKey参数 |
+| 70017 | 产品不存在 | 验证产品是否存在且可访问 |
+| 70089 | 权限受限 | 检查SaaS应用的产品访问权限 |
+| 401 | Token无效或过期 | 刷新JWT token后重试 |
+
+## 产品状态说明
+
+| 状态 | 说明 | 设备注册 |
+|------|------|----------|
+| DEVELOPING | 开发中 | ❌ 不可注册 |
+| PUBLISHED | 已发布 | ✅ 可以注册 |
+| DEPRECATED | 已废弃 | ❌ 不可注册 |
+| SUSPENDED | 已暂停 | ❌ 暂时不可注册 |

@@ -1,0 +1,290 @@
+---
+title: '产品管理API'
+openapi: 'GET /v2/quecproductmgr/r3/openapi/products'
+---
+
+## 查询产品列表
+
+查询SaaS应用可访问的所有产品列表。产品定义了设备类型、功能和IoT生态系统的数据模型。
+
+## 产品类型
+
+<CardGroup cols={3}>
+  <Card title="普通设备" icon="microchip">
+    直接连接到平台的标准IoT设备
+  </Card>
+  <Card title="网关设备" icon="router">
+    管理和路由子设备通信的集线器设备
+  </Card>
+  <Card title="子设备" icon="link">
+    通过网关设备连接的子设备
+  </Card>
+</CardGroup>
+
+## 网络类型
+
+产品支持各种连接选项：
+
+- **CELLULAR**: 2G/3G/4G/5G蜂窝连接
+- **WIFI**: Wi-Fi网络连接设备
+- **BLUETOOTH**: 蓝牙低功耗设备  
+- **ETHERNET**: 有线以太网连接
+
+## 数据格式
+
+<Tabs>
+  <Tab title="物模型(TSL)">
+    **物模型规范语言** - 定义设备属性、服务和事件的标准化JSON架构。
+    
+    ```json
+    {
+      "properties": [
+        {
+          "code": "temperature",
+          "dataType": "FLOAT",
+          "name": "温度",
+          "unit": "°C"
+        }
+      ]
+    }
+    ```
+  </Tab>
+  
+  <Tab title="透传格式">
+    **原始数据** - 用于专用设备的自定义二进制或文本协议。
+    
+    ```json
+    {
+      "format": "CUSTOM",
+      "encoding": "hex",
+      "parser": "custom_protocol_v1"
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## 过滤和分页
+
+使用查询参数进行过滤和分页：
+
+```bash
+GET /v2/quecproductmgr/r3/openapi/products?pageNum=2&pageSize=50&productType=GATEWAY
+```
+
+## 代码示例
+
+<CodeGroup>
+
+```javascript JavaScript
+async function listProducts(token, options = {}) {
+  const { pageNum = 1, pageSize = 20, productType } = options;
+  
+  const params = new URLSearchParams({
+    pageNum: pageNum.toString(),
+    pageSize: pageSize.toString()
+  });
+  
+  if (productType) {
+    params.append('productType', productType);
+  }
+  
+  const response = await fetch(
+    `https://iot-api.quectelcn.com/v2/quecproductmgr/r3/openapi/products?${params}`,
+    {
+      headers: {
+        'Authorization': token,
+        'Content-Type': 'application/json'
+      }
+    }
+  );
+  
+  return await response.json();
+}
+
+// 使用示例
+const products = await listProducts(token, { 
+  pageSize: 50, 
+  productType: 'NORMAL' 
+});
+```
+
+```python Python
+import requests
+
+def list_products(token, page_num=1, page_size=20, product_type=None):
+    url = "https://iot-api.quectelcn.com/v2/quecproductmgr/r3/openapi/products"
+    
+    params = {
+        "pageNum": page_num,
+        "pageSize": page_size
+    }
+    
+    if product_type:
+        params["productType"] = product_type
+    
+    headers = {
+        "Authorization": token,
+        "Content-Type": "application/json"
+    }
+    
+    response = requests.get(url, params=params, headers=headers)
+    return response.json()
+
+# 使用示例
+products = list_products(token, page_size=50, product_type="GATEWAY")
+```
+
+```curl cURL
+curl -X GET "https://iot-api.quectelcn.com/v2/quecproductmgr/r3/openapi/products?pageNum=1&pageSize=20" \
+  -H "Authorization: YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json"
+```
+
+</CodeGroup>
+
+## 查询产品详情
+
+### 接口地址
+`GET /v2/quecproductmgr/r3/openapi/product/detail`
+
+### 请求参数
+
+| 参数名 | 类型 | 必填 | 说明 |
+|--------|------|------|------|
+| productKey | String | 是 | 产品PK |
+
+### 代码示例
+
+<CodeGroup>
+
+```javascript JavaScript
+async function getProductDetail(token, productKey) {
+  const params = new URLSearchParams({ productKey });
+  
+  const response = await fetch(
+    `https://iot-api.quectelcn.com/v2/quecproductmgr/r3/openapi/product/detail?${params}`,
+    {
+      headers: {
+        'Authorization': token,
+        'Content-Type': 'application/json'
+      }
+    }
+  );
+  
+  return await response.json();
+}
+
+const productDetail = await getProductDetail(token, 'p12345');
+```
+
+```python Python
+def get_product_detail(token, product_key):
+    url = "https://iot-api.quectelcn.com/v2/quecproductmgr/r3/openapi/product/detail"
+    
+    params = {"productKey": product_key}
+    
+    headers = {
+        "Authorization": token,
+        "Content-Type": "application/json"
+    }
+    
+    response = requests.get(url, params=params, headers=headers)
+    return response.json()
+```
+
+</CodeGroup>
+
+## 响应示例
+
+### 产品列表响应
+
+```json
+{
+  "code": 200,
+  "msg": "OK",
+  "data": [
+    {
+      "productKey": "p12345",
+      "productName": "智能温度传感器",
+      "productType": "NORMAL",
+      "dataFormat": "TSL",
+      "networkType": "CELLULAR",
+      "nodeType": "DIRECT",
+      "createTime": "2023-12-01T10:30:00Z",
+      "deviceCount": 1250,
+      "status": "PUBLISHED"
+    }
+  ],
+  "pageNum": 1,
+  "pageSize": 20,
+  "total": 45,
+  "pages": 3
+}
+```
+
+## 使用场景
+
+<AccordionGroup>
+  <Accordion title="产品发现">
+    列出所有可用产品以了解您的IoT生态系统和设备功能。
+  </Accordion>
+  
+  <Accordion title="设备注册">
+    在注册新设备之前检索产品规范以确保兼容性。
+  </Accordion>
+  
+  <Accordion title="数据管道设置">
+    了解数据格式和架构以配置数据处理管道。
+  </Accordion>
+  
+  <Accordion title="网关管理">
+    识别网关产品以设置子设备管理和路由。
+  </Accordion>
+</AccordionGroup>
+
+## 错误处理
+
+常见错误场景：
+
+- **401**: 无效或过期的JWT token
+- **403**: 产品访问权限不足
+- **50005**: 无效的分页参数
+- **70089**: 产品访问权限受限
+
+对瞬时错误实施指数退避重试逻辑。
+
+## 请求参数
+
+### 查询产品列表
+
+| 参数名 | 类型 | 必填 | 说明 |
+|--------|------|------|------|
+| pageNum | Integer | 否 | 分页码(默认:1) |
+| pageSize | Integer | 否 | 分页，每页大小(默认:20，最大:100) |
+| productType | String | 否 | 产品类型过滤 |
+
+## 响应参数
+
+| 参数名 | 类型 | 说明 |
+|--------|------|------|
+| code | Integer | 返回码 |
+| msg | String | 提示信息 |
+| data | Array | 产品列表数据 |
+| pageNum | Integer | 当前页数 |
+| pageSize | Integer | 每页数量 |
+| total | Integer | 总数 |
+| pages | Integer | 总页数 |
+
+### 产品信息字段
+
+| 字段名 | 类型 | 说明 |
+|--------|------|------|
+| productKey | String | 产品PK |
+| productName | String | 产品名称 |
+| productType | String | 产品类型：NORMAL-普通设备，GATEWAY-网关设备，CHILD-子设备 |
+| dataFormat | String | 数据格式：TSL-物模型，CUSTOM-透传 |
+| nodeType | String | 节点类型：DIRECT-直连，GATEWAY-网关 |
+| networkType | String | 网络类型：CELLULAR-蜂窝，WIFI-WiFi，BLUETOOTH-蓝牙，ETHERNET-以太网 |
+| createTime | String | 创建时间 |
+| deviceCount | Integer | 设备数量 |
+| status | String | 产品状态 |

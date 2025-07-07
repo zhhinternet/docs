@@ -1,0 +1,412 @@
+---
+title: '启动订阅'
+openapi: 'POST /v2/quecrule/r1/openapi/subscribe/start'
+---
+
+## 启动订阅概述
+
+激活消息订阅，开始接收和处理消息。启动后订阅状态变为ACTIVE，系统将开始向配置的端点推送消息。
+
+## 代码示例
+
+<CodeGroup>
+
+```javascript JavaScript
+async function startSubscription(token, subscriptionId) {
+  const response = await fetch(
+    'https://iot-api.quectelcn.com/v2/quecrule/r1/openapi/subscribe/start',
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': token,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ subscriptionId })
+    }
+  );
+  
+  return await response.json();
+}
+
+// 启动单个订阅
+const result = await startSubscription(token, 'sub_1234567890abcdef');
+console.log('启动结果:', result);
+
+// 批量启动订阅
+async function startMultipleSubscriptions(token, subscriptionIds) {
+  const results = [];
+  
+  for (const subscriptionId of subscriptionIds) {
+    try {
+      const result = await startSubscription(token, subscriptionId);
+      results.push({
+        subscriptionId,
+        success: result.code === 200,
+        result
+      });
+    } catch (error) {
+      results.push({
+        subscriptionId,
+        success: false,
+        error: error.message
+      });
+    }
+  }
+  
+  return results;
+}
+
+// 启动多个订阅
+const subscriptionIds = ['sub_001', 'sub_002', 'sub_003'];
+const batchResults = await startMultipleSubscriptions(token, subscriptionIds);
+console.log('批量启动结果:', batchResults);
+
+// 智能启动管理器
+class SubscriptionStarter {
+  constructor(token) {
+    this.token = token;
+  }
+  
+  async startWithRetry(subscriptionId, maxRetries = 3) {
+    for (let i = 0; i < maxRetries; i++) {
+      try {
+        const result = await startSubscription(this.token, subscriptionId);
+        if (result.code === 200) {
+          return result;
+        }
+      } catch (error) {
+        console.log(`启动失败，重试 ${i + 1}/${maxRetries}:`, error.message);
+        if (i < maxRetries - 1) {
+          await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
+        }
+      }
+    }
+    throw new Error(`启动订阅失败，已重试 ${maxRetries} 次`);
+  }
+  
+  async startBySchedule(subscriptionIds, startHour, endHour) {
+    const currentHour = new Date().getHours();
+    
+    if (currentHour >= startHour && currentHour < endHour) {
+      console.log(`工作时间 (${startHour}-${endHour})，启动订阅`);
+      return await startMultipleSubscriptions(this.token, subscriptionIds);
+    } else {
+      console.log('非工作时间，跳过启动');
+      return [];
+    }
+  }
+  
+  async startWithHealthCheck(subscriptionId) {
+    // 先启动订阅
+    const result = await startSubscription(this.token, subscriptionId);
+    
+    if (result.code === 200) {
+      // 等待一段时间后检查状态
+      await new Promise(resolve => setTimeout(resolve, 5000));
+      
+      // 这里可以添加健康检查逻辑
+      console.log(`订阅 ${subscriptionId} 启动成功，正在进行健康检查...`);
+      
+      return {
+        ...result,
+        healthCheck: 'PENDING'
+      };
+    }
+    
+    return result;
+  }
+}
+
+// 使用启动管理器
+const starter = new SubscriptionStarter(token);
+
+// 带重试的启动
+try {
+  const result = await starter.startWithRetry('sub_1234567890abcdef');
+  console.log('重试启动成功:', result);
+} catch (error) {
+  console.error('启动失败:', error.message);
+}
+
+// 按时间计划启动
+const workSubscriptions = ['sub_work_001', 'sub_work_002'];
+await starter.startBySchedule(workSubscriptions, 9, 18);
+
+// 带健康检查的启动
+const healthResult = await starter.startWithHealthCheck('sub_1234567890abcdef');
+console.log('健康检查启动:', healthResult);
+```
+
+```python Python
+import requests
+import time
+from datetime import datetime
+
+def start_subscription(token, subscription_id):
+    """启动订阅"""
+    url = "https://iot-api.quectelcn.com/v2/quecrule/r1/openapi/subscribe/start"
+    
+    payload = {"subscriptionId": subscription_id}
+    
+    headers = {
+        "Authorization": token,
+        "Content-Type": "application/json"
+    }
+    
+    response = requests.post(url, json=payload, headers=headers)
+    response.raise_for_status()
+    
+    return response.json()
+
+# 启动单个订阅
+result = start_subscription(token, "sub_1234567890abcdef")
+print(f"启动结果: {result}")
+
+class SubscriptionStarter:
+    """订阅启动管理器"""
+    
+    def __init__(self, token):
+        self.token = token
+    
+    def start_with_retry(self, subscription_id, max_retries=3, delay=1):
+        """带重试的启动"""
+        for attempt in range(max_retries):
+            try:
+                result = start_subscription(self.token, subscription_id)
+                if result["code"] == 200:
+                    return result
+            except Exception as e:
+                print(f"启动失败，重试 {attempt + 1}/{max_retries}: {e}")
+                if attempt < max_retries - 1:
+                    time.sleep(delay * (attempt + 1))
+        
+        raise Exception(f"启动订阅失败，已重试 {max_retries} 次")
+    
+    def bulk_start(self, subscription_ids):
+        """批量启动订阅"""
+        results = []
+        
+        for sub_id in subscription_ids:
+            try:
+                result = start_subscription(self.token, sub_id)
+                results.append({
+                    "subscriptionId": sub_id,
+                    "success": True,
+                    "result": result
+                })
+            except Exception as e:
+                results.append({
+                    "subscriptionId": sub_id,
+                    "success": False,
+                    "error": str(e)
+                })
+        
+        return results
+    
+    def start_by_condition(self, subscription_configs):
+        """条件启动订阅"""
+        results = []
+        
+        for config in subscription_configs:
+            sub_id = config["subscriptionId"]
+            condition = config.get("condition", lambda: True)
+            
+            try:
+                if condition():
+                    result = start_subscription(self.token, sub_id)
+                    results.append({
+                        "subscriptionId": sub_id,
+                        "executed": True,
+                        "result": result
+                    })
+                else:
+                    results.append({
+                        "subscriptionId": sub_id,
+                        "executed": False,
+                        "reason": "条件不满足"
+                    })
+            except Exception as e:
+                results.append({
+                    "subscriptionId": sub_id,
+                    "executed": False,
+                    "error": str(e)
+                })
+        
+        return results
+    
+    def start_with_monitoring(self, subscription_id, check_interval=10):
+        """启动订阅并监控状态"""
+        # 启动订阅
+        result = start_subscription(self.token, subscription_id)
+        
+        if result["code"] == 200:
+            print(f"订阅 {subscription_id} 启动成功，开始监控...")
+            
+            # 这里可以添加状态监控逻辑
+            time.sleep(check_interval)
+            print(f"订阅 {subscription_id} 运行正常")
+            
+            return {
+                **result,
+                "monitoring": "ACTIVE"
+            }
+        
+        return result
+
+# 使用启动管理器
+starter = SubscriptionStarter(token)
+
+# 带重试的启动
+try:
+    result = starter.start_with_retry("sub_1234567890abcdef")
+    print(f"重试启动成功: {result}")
+except Exception as e:
+    print(f"启动失败: {e}")
+
+# 批量启动
+test_subscriptions = ["sub_001", "sub_002", "sub_003"]
+bulk_results = starter.bulk_start(test_subscriptions)
+print(f"批量启动结果: {bulk_results}")
+
+# 条件启动
+subscription_configs = [
+    {
+        "subscriptionId": "sub_prod_001",
+        "condition": lambda: datetime.now().hour >= 9  # 上午9点后启动
+    },
+    {
+        "subscriptionId": "sub_test_001",
+        "condition": lambda: datetime.now().weekday() < 5  # 工作日启动
+    }
+]
+
+conditional_results = starter.start_by_condition(subscription_configs)
+print(f"条件启动结果: {conditional_results}")
+
+# 带监控的启动
+monitoring_result = starter.start_with_monitoring("sub_1234567890abcdef")
+print(f"监控启动结果: {monitoring_result}")
+```
+
+```curl cURL
+# 启动单个订阅
+curl -X POST "https://iot-api.quectelcn.com/v2/quecrule/r1/openapi/subscribe/start" \
+  -H "Authorization: YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"subscriptionId": "sub_1234567890abcdef"}'
+
+# 使用变量启动订阅
+SUBSCRIPTION_ID="sub_1234567890abcdef"
+JWT_TOKEN="YOUR_JWT_TOKEN"
+
+curl -X POST "https://iot-api.quectelcn.com/v2/quecrule/r1/openapi/subscribe/start" \
+  -H "Authorization: $JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d "{\"subscriptionId\": \"$SUBSCRIPTION_ID\"}"
+
+# 批量启动多个订阅的脚本示例
+#!/bin/bash
+SUBSCRIPTIONS=("sub_001" "sub_002" "sub_003")
+JWT_TOKEN="YOUR_JWT_TOKEN"
+
+for sub_id in "${SUBSCRIPTIONS[@]}"; do
+  echo "启动订阅: $sub_id"
+  curl -X POST "https://iot-api.quectelcn.com/v2/quecrule/r1/openapi/subscribe/start" \
+    -H "Authorization: $JWT_TOKEN" \
+    -H "Content-Type: application/json" \
+    -d "{\"subscriptionId\": \"$sub_id\"}" \
+    -w "\n状态码: %{http_code}\n\n"
+done
+```
+
+</CodeGroup>
+
+## 响应示例
+
+```json
+{
+  "code": 200,
+  "msg": "OK",
+  "data": {
+    "subscriptionId": "sub_1234567890abcdef",
+    "status": "ACTIVE",
+    "startTime": "2023-12-15T14:30:25Z",
+    "message": "订阅已成功启动"
+  }
+}
+```
+
+## 使用场景
+
+<AccordionGroup>
+  <Accordion title="工作时间启动">
+    在工作时间自动启动订阅，开始处理业务消息
+  </Accordion>
+  
+  <Accordion title="系统恢复">
+    系统维护完成后重新启动订阅，恢复消息处理
+  </Accordion>
+  
+  <Accordion title="负载均衡">
+    根据系统负载情况动态启动额外的订阅实例
+  </Accordion>
+  
+  <Accordion title="事件触发">
+    基于特定事件或条件自动启动相关订阅
+  </Accordion>
+</AccordionGroup>
+
+## 状态变更
+
+启动成功后，订阅状态将从 `INACTIVE` 变为 `ACTIVE`，系统开始：
+
+- 接收新的消息
+- 向配置的端点推送消息
+- 记录处理日志
+- 更新统计指标
+
+## 最佳实践
+
+<AccordionGroup>
+  <Accordion title="启动前检查">
+    启动前确认目标端点可用，避免消息堆积
+  </Accordion>
+  
+  <Accordion title="批量操作">
+    批量启动时实现适当的并发控制和错误处理
+  </Accordion>
+  
+  <Accordion title="监控告警">
+    启动后监控订阅状态，设置异常告警
+  </Accordion>
+  
+  <Accordion title="日志记录">
+    记录启动操作日志，便于问题排查和审计
+  </Accordion>
+</AccordionGroup>
+
+## 错误处理
+
+| 错误码 | 说明 | 解决方案 |
+|---------|------|----------|
+| 60008 | 订阅不存在 | 验证订阅ID是否正确 |
+| 60009 | 订阅状态冲突 | 检查订阅是否已处于ACTIVE状态 |
+| 60010 | 队列连接失败 | 检查队列服务状态和网络连接 |
+| 70089 | 权限受限 | 检查用户的订阅管理权限 |
+
+## 相关接口
+
+<CardGroup cols={2}>
+  <Card title="停止订阅" href="/api-reference/endpoint/subscription-stop">
+    停止正在运行的订阅
+  </Card>
+  <Card title="查询订阅列表" href="/api-reference/endpoint/subscription-list">
+    查看所有订阅状态
+  </Card>
+  <Card title="创建订阅" href="/api-reference/endpoint/subscription-create">
+    创建新的消息订阅
+  </Card>
+  <Card title="SaaS订阅" href="/api-reference/endpoint/subscription-saas-create">
+    创建SaaS级订阅
+  </Card>
+</CardGroup>

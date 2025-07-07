@@ -1,0 +1,457 @@
+---
+title: '物模型API'
+openapi: 'GET /v2/quectsl/openapi/product/export/tslFile'
+---
+
+## 查询产品最新物模型
+
+查询产品的最新物模型(TSL)，以JSON格式返回。物模型定义了设备的属性、服务和事件，是设备数据通信的标准规范。
+
+## 物模型概述
+
+物模型(Thing Specification Language，TSL)是IoT设备的数字化描述，包含三个核心组件：
+
+<CardGroup cols={3}>
+  <Card title="属性 Properties" icon="sliders">
+    设备的状态数据，如温度、湿度等可读写的设备参数
+  </Card>
+  <Card title="服务 Services" icon="gear">
+    设备可执行的指令，如开关机、重启等操作命令
+  </Card>
+  <Card title="事件 Events" icon="bell">
+    设备主动上报的信息，如故障告警、状态变更等
+  </Card>
+</CardGroup>
+
+## 接口地址
+
+`GET /v2/quectsl/openapi/product/export/tslFile`
+
+## 请求参数
+
+| 参数名 | 类型 | 必填 | 说明 |
+|--------|------|------|------|
+| productKey | String | 是 | 产品PK |
+
+## 代码示例
+
+<CodeGroup>
+
+```javascript JavaScript
+async function getThingModel(token, productKey) {
+  const params = new URLSearchParams({
+    productKey
+  });
+  
+  const response = await fetch(
+    `https://iot-api.quectelcn.com/v2/quectsl/openapi/product/export/tslFile?${params}`,
+    {
+      headers: {
+        'Authorization': token,
+        'Content-Type': 'application/json'
+      }
+    }
+  );
+  
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  }
+  
+  return await response.json();
+}
+
+// 获取产品物模型
+const thingModel = await getThingModel(token, 'p12345');
+console.log('产品物模型:', JSON.stringify(thingModel.data, null, 2));
+
+// 解析物模型组件
+const { properties, services, events } = thingModel.data;
+console.log(`属性数量: ${properties.length}`);
+console.log(`服务数量: ${services.length}`);
+console.log(`事件数量: ${events.length}`);
+```
+
+```python Python
+import requests
+
+def get_thing_model(token, product_key):
+    """
+    查询产品最新物模型
+    
+    Args:
+        token: JWT认证token
+        product_key: 产品PK
+    
+    Returns:
+        产品的完整物模型定义
+    """
+    url = "https://iot-api.quectelcn.com/v2/quectsl/openapi/product/export/tslFile"
+    
+    params = {
+        "productKey": product_key
+    }
+    
+    headers = {
+        "Authorization": token,
+        "Content-Type": "application/json"
+    }
+    
+    response = requests.get(url, params=params, headers=headers)
+    response.raise_for_status()
+    
+    return response.json()
+
+# 获取产品物模型
+thing_model = get_thing_model(token, "p12345")
+print("产品物模型:", thing_model["data"])
+
+# 解析物模型组件
+tsl_data = thing_model["data"]
+properties = tsl_data.get("properties", [])
+services = tsl_data.get("services", [])
+events = tsl_data.get("events", [])
+
+print(f"属性数量: {len(properties)}")
+print(f"服务数量: {len(services)}")
+print(f"事件数量: {len(events)}")
+```
+
+```curl cURL
+# 查询产品物模型
+curl -X GET "https://iot-api.quectelcn.com/v2/quectsl/openapi/product/export/tslFile?productKey=p12345" \
+  -H "Authorization: YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json"
+```
+
+</CodeGroup>
+
+## 响应示例
+
+```json
+{
+  "code": 200,
+  "msg": "OK",
+  "data": {
+    "properties": [
+      {
+        "code": "temperature",
+        "name": "温度",
+        "dataType": "FLOAT",
+        "min": -40,
+        "max": 85,
+        "unit": "°C",
+        "rwFlag": "R",
+        "description": "环境温度传感器读数"
+      },
+      {
+        "code": "humidity",
+        "name": "湿度",
+        "dataType": "FLOAT",
+        "min": 0,
+        "max": 100,
+        "unit": "%RH",
+        "rwFlag": "R",
+        "description": "环境湿度传感器读数"
+      },
+      {
+        "code": "switch",
+        "name": "开关",
+        "dataType": "BOOL",
+        "rwFlag": "RW",
+        "description": "设备电源开关状态"
+      },
+      {
+        "code": "temperature_threshold",
+        "name": "温度阈值",
+        "dataType": "FLOAT",
+        "min": -20,
+        "max": 60,
+        "unit": "°C",
+        "rwFlag": "RW",
+        "description": "温度报警阈值设置"
+      }
+    ],
+    "services": [
+      {
+        "code": "reboot",
+        "name": "重启",
+        "description": "重启设备",
+        "inputParams": [
+          {
+            "code": "delay",
+            "name": "延迟时间",
+            "dataType": "INT",
+            "min": 0,
+            "max": 3600,
+            "unit": "秒",
+            "description": "重启前等待时间"
+          }
+        ],
+        "outputParams": [
+          {
+            "code": "result",
+            "name": "执行结果",
+            "dataType": "BOOL",
+            "description": "重启操作是否成功"
+          }
+        ]
+      },
+      {
+        "code": "reset_config",
+        "name": "恢复出厂设置",
+        "description": "将设备配置恢复到出厂默认值",
+        "inputParams": [],
+        "outputParams": [
+          {
+            "code": "status",
+            "name": "重置状态",
+            "dataType": "STRING",
+            "description": "配置重置操作状态"
+          }
+        ]
+      }
+    ],
+    "events": [
+      {
+        "code": "temperature_alert",
+        "name": "温度告警",
+        "eventType": "ALARM",
+        "description": "温度超过设定阈值时触发",
+        "outputParams": [
+          {
+            "code": "current_temperature",
+            "name": "当前温度",
+            "dataType": "FLOAT",
+            "unit": "°C",
+            "description": "触发告警时的温度值"
+          },
+          {
+            "code": "threshold",
+            "name": "阈值",
+            "dataType": "FLOAT",
+            "unit": "°C",
+            "description": "设定的温度阈值"
+          },
+          {
+            "code": "alert_level",
+            "name": "告警级别",
+            "dataType": "STRING",
+            "description": "告警严重程度：LOW/MEDIUM/HIGH"
+          }
+        ]
+      },
+      {
+        "code": "device_online",
+        "name": "设备上线",
+        "eventType": "INFO",
+        "description": "设备连接到平台时触发",
+        "outputParams": [
+          {
+            "code": "connect_time",
+            "name": "连接时间",
+            "dataType": "STRING",
+            "description": "设备连接的时间戳"
+          },
+          {
+            "code": "ip_address",
+            "name": "IP地址",
+            "dataType": "STRING",
+            "description": "设备连接的IP地址"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+## 物模型数据类型
+
+### 基础数据类型
+
+| 数据类型 | 说明 | 示例 |
+|----------|------|------|
+| BOOL | 布尔值 | true, false |
+| INT | 整数 | 123, -456 |
+| FLOAT | 浮点数 | 23.5, -10.2 |
+| STRING | 字符串 | "hello", "设备名称" |
+| ENUM | 枚举值 | "LOW", "MEDIUM", "HIGH" |
+| DATE | 日期时间 | "2023-12-15T14:30:25Z" |
+
+### 复杂数据类型
+
+<Tabs>
+  <Tab title="STRUCT 结构体">
+    ```json
+    {
+      "code": "location",
+      "name": "位置信息",
+      "dataType": "STRUCT",
+      "specs": [
+        {
+          "code": "latitude",
+          "name": "纬度",
+          "dataType": "FLOAT"
+        },
+        {
+          "code": "longitude",
+          "name": "经度", 
+          "dataType": "FLOAT"
+        }
+      ]
+    }
+    ```
+  </Tab>
+  
+  <Tab title="ARRAY 数组">
+    ```json
+    {
+      "code": "sensor_readings",
+      "name": "传感器读数",
+      "dataType": "ARRAY",
+      "arrayInfo": {
+        "type": "FLOAT",
+        "size": 10
+      }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## 属性读写标识
+
+| 标识 | 说明 | 用途 |
+|------|------|------|
+| R | 只读 | 传感器数据、设备状态等 |
+| W | 只写 | 控制命令、配置设置等 |
+| RW | 读写 | 可查询可设置的参数 |
+
+## 事件类型
+
+<CardGroup cols={3}>
+  <Card title="INFO 信息事件" icon="info-circle">
+    一般性信息通知，如设备上线、状态变更
+  </Card>
+  <Card title="ALARM 告警事件" icon="exclamation-triangle">
+    需要关注的异常情况，如传感器超阈值
+  </Card>
+  <Card title="ERROR 错误事件" icon="times-circle">
+    严重故障或错误，需要立即处理
+  </Card>
+</CardGroup>
+
+## 物模型使用场景
+
+<AccordionGroup>
+  <Accordion title="设备数据解析">
+    根据物模型定义解析设备上报的数据，确保数据格式的一致性和完整性。
+  </Accordion>
+  
+  <Accordion title="设备控制指令">
+    使用物模型中定义的服务向设备发送标准化的控制指令。
+  </Accordion>
+  
+  <Accordion title="数据验证">
+    验证设备上报数据是否符合物模型规范，包括数据类型、取值范围等。
+  </Accordion>
+  
+  <Accordion title="界面生成">
+    基于物模型自动生成设备管理界面，包括监控面板和控制界面。
+  </Accordion>
+</AccordionGroup>
+
+## 物模型示例解析
+
+<Tabs>
+  <Tab title="温度传感器">
+    ```javascript
+    // 解析温度传感器物模型
+    function parseTemperatureSensor(tslData) {
+      const tempProperty = tslData.properties.find(p => p.code === 'temperature');
+      const thresholdProperty = tslData.properties.find(p => p.code === 'temperature_threshold');
+      const alertEvent = tslData.events.find(e => e.code === 'temperature_alert');
+      
+      console.log(`温度范围: ${tempProperty.min}°C - ${tempProperty.max}°C`);
+      console.log(`阈值设置: ${thresholdProperty.rwFlag === 'RW' ? '可调节' : '固定'}`);
+      console.log(`支持温度告警: ${alertEvent ? '是' : '否'}`);
+    }
+    ```
+  </Tab>
+  
+  <Tab title="智能开关">
+    ```javascript
+    // 解析智能开关物模型
+    function parseSmartSwitch(tslData) {
+      const switchProperty = tslData.properties.find(p => p.code === 'switch');
+      const rebootService = tslData.services.find(s => s.code === 'reboot');
+      
+      if (switchProperty && switchProperty.rwFlag === 'RW') {
+        console.log('支持开关控制');
+      }
+      
+      if (rebootService) {
+        console.log('支持远程重启');
+        const delayParam = rebootService.inputParams.find(p => p.code === 'delay');
+        if (delayParam) {
+          console.log(`重启延迟范围: ${delayParam.min}-${delayParam.max}秒`);
+        }
+      }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## 最佳实践
+
+<CardGroup cols={2}>
+  <Card title="物模型设计" icon="drafting-compass">
+    设计清晰、简洁的物模型，避免过于复杂的数据结构
+  </Card>
+  <Card title="版本管理" icon="code-branch">
+    谨慎管理物模型版本，确保向后兼容性
+  </Card>
+  <Card title="数据验证" icon="check-circle">
+    严格按照物模型定义验证所有设备数据
+  </Card>
+  <Card title="文档维护" icon="file-alt">
+    保持物模型文档与实际定义的同步更新
+  </Card>
+</CardGroup>
+
+## 错误处理
+
+| 错误码 | 描述 | 解决方案 |
+|--------|------|----------|
+| 50006 | ProductKey为空 | 提供有效的productKey参数 |
+| 70017 | 产品不存在 | 验证产品存在且可访问 |
+| 70025 | 物模型不存在 | 确认产品已发布物模型 |
+| 70089 | 权限受限 | 检查SaaS应用产品访问权限 |
+
+## 响应参数
+
+| 参数名 | 类型 | 说明 |
+|--------|------|------|
+| code | Integer | 返回码 |
+| msg | String | 提示信息 |
+| data | Object | 物模型数据 |
+
+### 物模型数据结构
+
+| 字段名 | 类型 | 说明 |
+|--------|------|------|
+| properties | Array | 属性列表 |
+| services | Array | 服务列表 |
+| events | Array | 事件列表 |
+
+### 属性字段说明
+
+| 字段名 | 类型 | 说明 |
+|--------|------|------|
+| code | String | 属性标识符 |
+| name | String | 属性名称 |
+| dataType | String | 数据类型 |
+| min | Number | 最小值(数值类型) |
+| max | Number | 最大值(数值类型) |
+| unit | String | 单位 |
+| rwFlag | String | 读写标识：R-只读，W-只写，RW-读写 |
+| description | String | 属性描述 |

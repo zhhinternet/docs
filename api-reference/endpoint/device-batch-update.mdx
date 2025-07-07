@@ -1,0 +1,504 @@
+---
+title: '批量更新设备'
+openapi: 'POST /v2/devicemgr/r3/openapi/device/updateBatch'
+---
+
+## 批量更新概述
+
+一次性更新多个IoT设备的基本信息，适用于大规模设备信息维护场景。支持批量修改设备名称、描述、标签等非关键属性。
+
+## 批量更新优势
+
+<CardGroup cols={3}>
+  <Card title="高效批处理" icon="bolt">
+    单次请求更新多个设备，提高操作效率
+  </Card>
+  <Card title="事务一致性" icon="shield-check">
+    批量操作具有事务性，保证数据一致性
+  </Card>
+  <Card title="统一管理" icon="layer-group">
+    统一更新设备属性和配置信息
+  </Card>
+</CardGroup>
+
+## 可更新字段
+
+<Tabs>
+  <Tab title="基本信息">
+    **设备名称**: 设备的友好显示名称
+    **设备描述**: 设备的详细描述信息
+    **设备位置**: 设备的地理位置或逻辑位置
+    **联系人信息**: 设备负责人或维护人员信息
+  </Tab>
+  
+  <Tab title="标签和分类">
+    **设备标签**: 用于分类和检索的标签
+    **部门归属**: 设备所属部门或组织
+    **项目分组**: 设备所属项目或应用场景
+    **优先级**: 设备的重要性级别
+  </Tab>
+  
+  <Tab title="配置参数">
+    **上报频率**: 数据上报的时间间隔
+    **批量大小**: 批量上报的数据条数
+    **超时设置**: 各种操作的超时时间
+    **重试次数**: 失败重试的最大次数
+  </Tab>
+</Tabs>
+
+## 代码示例
+
+<CodeGroup>
+
+```javascript JavaScript
+async function updateDevicesBatch(token, devices) {
+  const response = await fetch(
+    'https://iot-api.quectelcn.com/v2/devicemgr/r3/openapi/device/updateBatch',
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': token,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        devices: devices
+      })
+    }
+  );
+  
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  }
+  
+  return await response.json();
+}
+
+// 批量更新设备信息
+const devicesToUpdate = [
+  {
+    productKey: 'p12345',
+    deviceKey: 'd001',
+    deviceName: '车间A-温度传感器-01',
+    description: '车间A区域温度监测设备，负责人：张三',
+    location: '车间A-北侧-第一排',
+    tags: {
+      department: '生产部',
+      workshop: 'A车间',
+      equipment_type: '温度传感器',
+      priority: 'high'
+    }
+  },
+  {
+    productKey: 'p12345',
+    deviceKey: 'd002',
+    deviceName: '车间A-湿度传感器-01',
+    description: '车间A区域湿度监测设备，负责人：李四',
+    location: '车间A-南侧-第二排',
+    tags: {
+      department: '生产部',
+      workshop: 'A车间',
+      equipment_type: '湿度传感器',
+      priority: 'medium'
+    }
+  },
+  {
+    productKey: 'p12345',
+    deviceKey: 'd003',
+    deviceName: '仓库B-烟雾传感器-01',
+    description: '仓库B区域烟雾监测设备，负责人：王五',
+    location: '仓库B-入口-安全区域',
+    tags: {
+      department: '安全部',
+      workshop: 'B仓库',
+      equipment_type: '烟雾传感器',
+      priority: 'critical'
+    }
+  }
+];
+
+// 执行批量更新
+try {
+  const result = await updateDevicesBatch(token, devicesToUpdate);
+  console.log('批量更新结果:', result);
+  
+  // 处理更新结果
+  if (result.data.summary.successCount > 0) {
+    console.log(`成功更新 ${result.data.summary.successCount} 个设备`);
+  }
+  
+  if (result.data.summary.failureCount > 0) {
+    console.log(`更新失败 ${result.data.summary.failureCount} 个设备`);
+    // 查看失败详情
+    result.data.results.forEach(item => {
+      if (item.status === 'FAILED') {
+        console.error(`设备 ${item.deviceKey} 更新失败: ${item.errorMessage}`);
+      }
+    });
+  }
+} catch (error) {
+  console.error('批量更新失败:', error.message);
+}
+
+// 按部门批量更新设备标签
+async function updateDevicesByDepartment(token, productKey, department, newTags) {
+  // 首先获取该部门的所有设备
+  const deviceList = await getDeviceList(token, productKey);
+  const departmentDevices = deviceList.data.filter(device => 
+    device.tags && device.tags.department === department
+  );
+  
+  // 准备批量更新数据
+  const updateData = departmentDevices.map(device => ({
+    productKey: device.productKey,
+    deviceKey: device.deviceKey,
+    tags: { ...device.tags, ...newTags }
+  }));
+  
+  if (updateData.length > 0) {
+    return await updateDevicesBatch(token, updateData);
+  } else {
+    console.log(`未找到 ${department} 部门的设备`);
+    return null;
+  }
+}
+
+// 使用示例：更新生产部所有设备的维护周期标签
+await updateDevicesByDepartment(token, 'p12345', '生产部', {
+  maintenance_cycle: '3months',
+  last_maintenance: '2023-12-01',
+  next_maintenance: '2024-03-01'
+});
+```
+
+```python Python
+import requests
+import json
+from datetime import datetime, timedelta
+
+def update_devices_batch(token, devices):
+    """
+    批量更新设备信息
+    
+    Args:
+        token: JWT认证令牌
+        devices: 设备更新列表
+        
+    Returns:
+        批量更新结果
+    """
+    url = "https://iot-api.quectelcn.com/v2/devicemgr/r3/openapi/device/updateBatch"
+    
+    payload = {
+        "devices": devices
+    }
+    
+    headers = {
+        "Authorization": token,
+        "Content-Type": "application/json"
+    }
+    
+    response = requests.post(url, json=payload, headers=headers)
+    response.raise_for_status()
+    
+    return response.json()
+
+class DeviceManager:
+    def __init__(self, token):
+        self.token = token
+    
+    def prepare_location_update(self, device_location_map):
+        """
+        准备位置信息批量更新
+        
+        Args:
+            device_location_map: {deviceKey: location} 的映射
+        """
+        devices = []
+        for device_key, location_info in device_location_map.items():
+            devices.append({
+                "productKey": location_info["productKey"],
+                "deviceKey": device_key,
+                "location": location_info["location"],
+                "description": f"设备位置已更新为: {location_info['location']}"
+            })
+        return devices
+    
+    def prepare_maintenance_update(self, device_keys, product_key, maintenance_info):
+        """
+        准备维护信息批量更新
+        
+        Args:
+            device_keys: 设备DK列表
+            product_key: 产品PK
+            maintenance_info: 维护信息
+        """
+        devices = []
+        next_maintenance = datetime.now() + timedelta(days=maintenance_info.get('cycle_days', 90))
+        
+        for device_key in device_keys:
+            devices.append({
+                "productKey": product_key,
+                "deviceKey": device_key,
+                "tags": {
+                    "maintenance_person": maintenance_info.get('person', ''),
+                    "maintenance_cycle": f"{maintenance_info.get('cycle_days', 90)}days",
+                    "last_maintenance": datetime.now().strftime('%Y-%m-%d'),
+                    "next_maintenance": next_maintenance.strftime('%Y-%m-%d'),
+                    "maintenance_type": maintenance_info.get('type', 'regular')
+                }
+            })
+        return devices
+    
+    def update_devices_by_pattern(self, product_key, name_pattern, updates):
+        """
+        根据名称模式批量更新设备
+        
+        Args:
+            product_key: 产品PK
+            name_pattern: 设备名称模式（正则表达式）
+            updates: 更新内容
+        """
+        import re
+        
+        # 获取所有设备列表
+        devices_list = self.get_all_devices(product_key)
+        
+        # 筛选匹配模式的设备
+        matching_devices = []
+        pattern = re.compile(name_pattern)
+        
+        for device in devices_list:
+            if pattern.search(device['deviceName']):
+                update_data = {
+                    "productKey": product_key,
+                    "deviceKey": device['deviceKey']
+                }
+                update_data.update(updates)
+                matching_devices.append(update_data)
+        
+        if matching_devices:
+            return update_devices_batch(self.token, matching_devices)
+        else:
+            print(f"未找到匹配模式 '{name_pattern}' 的设备")
+            return None
+
+# 使用示例
+device_manager = DeviceManager(token)
+
+# 1. 批量更新设备位置信息
+location_updates = {
+    "device001": {
+        "productKey": "p12345",
+        "location": "北京市朝阳区工厂A-车间1-设备区A"
+    },
+    "device002": {
+        "productKey": "p12345", 
+        "location": "北京市朝阳区工厂A-车间1-设备区B"
+    },
+    "device003": {
+        "productKey": "p12345",
+        "location": "北京市朝阳区工厂A-车间2-设备区A"
+    }
+}
+
+location_update_data = device_manager.prepare_location_update(location_updates)
+result = update_devices_batch(token, location_update_data)
+print(f"位置更新结果: 成功 {result['data']['summary']['successCount']} 个")
+
+# 2. 批量设置维护计划
+maintenance_info = {
+    "person": "张工程师",
+    "cycle_days": 90,  # 90天维护周期
+    "type": "preventive"  # 预防性维护
+}
+
+device_keys = ["device001", "device002", "device003", "device004"]
+maintenance_update_data = device_manager.prepare_maintenance_update(
+    device_keys, "p12345", maintenance_info
+)
+
+result = update_devices_batch(token, maintenance_update_data)
+print(f"维护计划更新结果: 成功 {result['data']['summary']['successCount']} 个")
+
+# 3. 按模式批量更新设备
+# 更新所有以"温度传感器"开头的设备
+temperature_sensor_updates = {
+    "tags": {
+        "sensor_type": "temperature",
+        "measurement_unit": "celsius",
+        "accuracy": "±0.5°C",
+        "calibration_date": datetime.now().strftime('%Y-%m-%d')
+    }
+}
+
+result = device_manager.update_devices_by_pattern(
+    "p12345", 
+    r"^温度传感器.*", 
+    temperature_sensor_updates
+)
+if result:
+    print(f"温度传感器批量更新完成")
+```
+
+```curl cURL
+# 批量更新设备信息
+curl -X POST "https://iot-api.quectelcn.com/v2/devicemgr/r3/openapi/device/updateBatch" \
+  -H "Authorization: YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "devices": [
+      {
+        "productKey": "p12345",
+        "deviceKey": "d001",
+        "deviceName": "更新后的设备名称-001",
+        "description": "更新后的设备描述信息",
+        "location": "新的设备位置",
+        "tags": {
+          "department": "生产部",
+          "priority": "high"
+        }
+      },
+      {
+        "productKey": "p12345", 
+        "deviceKey": "d002",
+        "deviceName": "更新后的设备名称-002",
+        "description": "更新后的设备描述信息",
+        "location": "新的设备位置",
+        "tags": {
+          "department": "品质部",
+          "priority": "medium"
+        }
+      }
+    ]
+  }'
+```
+
+</CodeGroup>
+
+## 响应示例
+
+```json
+{
+  "code": 200,
+  "msg": "OK",
+  "data": {
+    "results": [
+      {
+        "deviceKey": "d001",
+        "status": "SUCCESS",
+        "updateTime": "2023-12-15T14:30:25Z"
+      },
+      {
+        "deviceKey": "d002", 
+        "status": "SUCCESS",
+        "updateTime": "2023-12-15T14:30:25Z"
+      },
+      {
+        "deviceKey": "d003",
+        "status": "FAILED",
+        "errorCode": 70018,
+        "errorMessage": "设备不存在"
+      }
+    ],
+    "summary": {
+      "totalRequested": 3,
+      "successCount": 2,
+      "failureCount": 1
+    }
+  }
+}
+```
+
+## 批量更新限制
+
+<Info>
+**批量大小**: 单次批量更新最多支持100个设备，建议每批50个设备。
+</Info>
+
+<Warning>
+**关键字段限制**: 无法通过批量更新修改ProductKey、DeviceKey、DeviceSecret等关键标识字段。
+</Warning>
+
+## 更新字段规范
+
+<AccordionGroup>
+  <Accordion title="设备名称规范">
+    - 长度：1-64个字符
+    - 支持中文、英文、数字、下划线、连字符
+    - 同一产品下设备名称必须唯一
+    - 不能包含特殊字符：`< > & " '`
+  </Accordion>
+  
+  <Accordion title="描述信息规范">
+    - 长度：0-256个字符
+    - 支持中文、英文、数字和常用标点符号
+    - 用于描述设备用途、位置、负责人等信息
+    - 支持换行符和基本格式化
+  </Accordion>
+  
+  <Accordion title="标签使用规范">
+    - 标签键：1-32个字符，字母数字下划线
+    - 标签值：0-128个字符
+    - 每个设备最多50个标签
+    - 建议使用统一的标签命名规范
+  </Accordion>
+  
+  <Accordion title="位置信息规范">
+    - 支持文本描述和地理坐标
+    - 文本位置：0-128个字符
+    - 地理坐标：latitude/longitude格式
+    - 建议使用层次化位置描述
+  </Accordion>
+</AccordionGroup>
+
+## 常见更新场景
+
+<CardGroup cols={2}>
+  <Card title="设备重新部署" icon="truck">
+    批量更新设备位置和负责人信息
+  </Card>
+  <Card title="组织架构调整" icon="sitemap">
+    批量更新设备的部门归属和标签
+  </Card>
+  <Card title="维护计划更新" icon="calendar">
+    批量设置设备维护周期和计划
+  </Card>
+  <Card title="配置标准化" icon="cog">
+    批量统一设备配置参数和属性
+  </Card>
+</CardGroup>
+
+## 错误处理
+
+| 错误码 | 说明 | 解决方案 |
+|---------|------|----------|
+| 50007 | 设备列表为空 | 确保devices数组不为空 |
+| 50008 | 设备名称重复 | 检查批次内和产品内的设备名称唯一性 |
+| 70018 | 设备不存在 | 验证设备DK是否正确且设备已注册 |
+| 70089 | 权限受限 | 检查SaaS应用的设备修改权限 |
+| 50010 | 字段长度超限 | 检查字段内容是否符合长度限制 |
+
+## 最佳实践
+
+<AccordionGroup>
+  <Accordion title="批量操作策略">
+    - 将大批量操作拆分为多个小批次
+    - 实现失败重试机制
+    - 记录操作日志便于追踪
+    - 在非业务高峰期执行批量操作
+  </Accordion>
+  
+  <Accordion title="数据验证">
+    - 更新前验证数据格式和内容
+    - 检查设备名称的唯一性
+    - 验证标签键值对的合法性
+    - 确保位置信息的准确性
+  </Accordion>
+  
+  <Accordion title="变更管理">
+    - 建立设备信息变更审批流程
+    - 记录变更历史和变更原因
+    - 通知相关人员设备信息变更
+    - 定期审查和清理过期标签
+  </Accordion>
+</AccordionGroup>

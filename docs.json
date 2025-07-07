@@ -1,7 +1,7 @@
 {
   "$schema": "https://mintlify.com/docs.json",
   "theme": "mint",
-  "name": "Mint Starter Kit",
+  "name": "移远通信IoT SaaS API文档",
   "colors": {
     "primary": "#16A34A",
     "light": "#07C983",
@@ -35,45 +35,87 @@
         ]
       },
       {
-        "tab": "API Reference",
+        "tab": "API接口文档",
         "groups": [
           {
-            "group": "API Documentation",
+            "group": "API文档",
             "pages": [
               "api-reference/introduction"
             ]
           },
           {
-            "group": "Endpoint Examples",
+            "group": "Token管理API",
             "pages": [
-              "api-reference/endpoint/get",
-              "api-reference/endpoint/create",
-              "api-reference/endpoint/delete",
-              "api-reference/endpoint/webhook"
+              "api-reference/endpoint/token-auth",
+              "api-reference/endpoint/token-refresh"
+            ]
+          },
+          {
+            "group": "产品管理API",
+            "pages": [
+              "api-reference/endpoint/product-mgmt",
+              "api-reference/endpoint/product-detail"
+            ]
+          },
+          {
+            "group": "设备管理API",
+            "pages": [
+              "api-reference/endpoint/device-mgmt",
+              "api-reference/endpoint/device-create",
+              "api-reference/endpoint/device-batch-create",
+              "api-reference/endpoint/device-detail",
+              "api-reference/endpoint/device-update",
+              "api-reference/endpoint/device-batch-update",
+              "api-reference/endpoint/device-delete",
+              "api-reference/endpoint/device-resource"
+            ]
+          },
+          {
+            "group": "物模型API",
+            "pages": [
+              "api-reference/endpoint/thing-model"
+            ]
+          },
+          {
+            "group": "网关设备管理API",
+            "pages": [
+              "api-reference/endpoint/gateway-subdevice-list",
+              "api-reference/endpoint/gateway-lookup",
+              "api-reference/endpoint/gateway-unbind"
+            ]
+          },
+          {
+            "group": "数据查询API",
+            "pages": [
+              "api-reference/endpoint/device-data-history",
+              "api-reference/endpoint/device-event-history"
+            ]
+          },
+          {
+            "group": "设备上下行消息API",
+            "pages": [
+              "api-reference/endpoint/device-property-write",
+              "api-reference/endpoint/device-service-invoke",
+              "api-reference/endpoint/device-raw-data",
+              "api-reference/endpoint/device-data-read",
+              "api-reference/endpoint/device-location"
+            ]
+          },
+          {
+            "group": "消息订阅管理API",
+            "pages": [
+              "api-reference/endpoint/queue-create",
+              "api-reference/endpoint/queue-list",
+              "api-reference/endpoint/subscription-create",
+              "api-reference/endpoint/subscription-saas-create",
+              "api-reference/endpoint/subscription-list",
+              "api-reference/endpoint/subscription-start",
+              "api-reference/endpoint/subscription-stop"
             ]
           }
         ]
       }
-    ],
-    "global": {
-      "anchors": [
-        {
-          "anchor": "Documentation",
-          "href": "https://mintlify.com/docs",
-          "icon": "book-open-cover"
-        },
-        {
-          "anchor": "Community",
-          "href": "https://mintlify.com/community",
-          "icon": "slack"
-        },
-        {
-          "anchor": "Blog",
-          "href": "https://mintlify.com/blog",
-          "icon": "newspaper"
-        }
-      ]
-    }
+    ]
   },
   "logo": {
     "light": "/logo/light.svg",
@@ -83,20 +125,20 @@
     "links": [
       {
         "label": "Support",
-        "href": "mailto:hi@mintlify.com"
+        "href": "mailto:support@quectel.com"
       }
     ],
     "primary": {
       "type": "button",
-      "label": "Dashboard",
-      "href": "https://dashboard.mintlify.com"
+      "label": "IoT Platform",
+      "href": "https://iot.quectelcn.com"
     }
   },
   "footer": {
     "socials": {
-      "x": "https://x.com/mintlify",
-      "github": "https://github.com/mintlify",
-      "linkedin": "https://linkedin.com/company/mintlify"
+      "x": "https://x.com/quectel",
+      "github": "https://github.com/quectel",
+      "linkedin": "https://linkedin.com/company/quectel"
     }
   }
 }

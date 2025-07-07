@@ -1,0 +1,540 @@
+---
+title: '读取设备物模型数据'
+openapi: 'POST /v2/deviceshadow/r3/openapi/dm/readData'
+---
+
+## 读取设备物模型数据
+
+查询设备的当前属性值和状态信息。此接口从设备影子服务获取数据，可以获取设备的最新状态，即使设备当前离线。
+
+## 设备影子机制
+
+<CardGroup cols={3}>
+  <Card title="影子缓存" icon="cloud">
+    平台缓存设备最后上报的属性值
+  </Card>
+  <Card title="离线查询" icon="wifi-slash">
+    即使设备离线也能查询最后状态
+  </Card>
+  <Card title="实时同步" icon="sync">
+    设备在线时数据实时更新
+  </Card>
+</CardGroup>
+
+## 数据查询特点
+
+<Info>
+**选择性查询**: 可以指定需要查询的属性标识符，只获取关注的数据，提高查询效率。
+</Info>
+
+<Warning>
+**数据时效性**: 返回的是设备最后上报的数据，可能不是实时状态。查看 `timestamp` 字段了解数据更新时间。
+</Warning>
+
+## 接口地址
+
+`POST /v2/deviceshadow/r3/openapi/dm/readData`
+
+## 请求参数
+
+| 参数名 | 类型 | 必填 | 说明 |
+|--------|------|------|------|
+| productKey | String | 是 | 产品PK |
+| deviceKey | String | 是 | 设备DK |
+| identifiers | Array | 是 | 属性标识符列表 |
+
+## 代码示例
+
+<CodeGroup>
+
+```javascript JavaScript
+async function readDeviceData(token, productKey, deviceKey, identifiers) {
+  const response = await fetch(
+    'https://iot-api.quectelcn.com/v2/deviceshadow/r3/openapi/dm/readData',
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': token,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        productKey,
+        deviceKey,
+        identifiers
+      })
+    }
+  );
+  
+  return await response.json();
+}
+
+// 读取基本传感器数据
+const sensorData = await readDeviceData(
+  token, 
+  'p12345', 
+  'd67890', 
+  ['temperature', 'humidity', 'pressure']
+);
+
+console.log('设备当前数据:', sensorData.data);
+
+// 读取设备状态信息
+const statusData = await readDeviceData(
+  token,
+  'p12345',
+  'd67890',
+  ['switch', 'battery_level', 'signal_strength']
+);
+
+// 读取配置信息
+const configData = await readDeviceData(
+  token,
+  'p12345',
+  'd67890',
+  ['temperature_threshold', 'reporting_interval', 'alert_enabled']
+);
+
+// 批量读取多个设备的相同属性
+async function readMultipleDeviceData(token, productKey, deviceKeys, identifiers) {
+  const results = [];
+  
+  for (const deviceKey of deviceKeys) {
+    try {
+      const data = await readDeviceData(token, productKey, deviceKey, identifiers);
+      results.push({
+        deviceKey,
+        data: data.data,
+        success: true
+      });
+    } catch (error) {
+      results.push({
+        deviceKey,
+        error: error.message,
+        success: false
+      });
+    }
+  }
+  
+  return results;
+}
+
+// 读取多个设备的温湿度数据
+const multiDeviceData = await readMultipleDeviceData(
+  token,
+  'p12345',
+  ['d67890', 'd67891', 'd67892'],
+  ['temperature', 'humidity']
+);
+```
+
+```python Python
+import requests
+
+def read_device_data(token, product_key, device_key, identifiers):
+    """
+    读取设备物模型数据
+    
+    Args:
+        token: JWT认证token
+        product_key: 产品PK
+        device_key: 设备DK
+        identifiers: 属性标识符列表
+    
+    Returns:
+        设备当前属性数据
+    """
+    url = "https://iot-api.quectelcn.com/v2/deviceshadow/r3/openapi/dm/readData"
+    
+    payload = {
+        "productKey": product_key,
+        "deviceKey": device_key,
+        "identifiers": identifiers
+    }
+    
+    headers = {
+        "Authorization": token,
+        "Content-Type": "application/json"
+    }
+    
+    response = requests.post(url, json=payload, headers=headers)
+    response.raise_for_status()
+    
+    return response.json()
+
+# 读取环境传感器数据
+sensor_data = read_device_data(
+    token, 
+    "p12345", 
+    "d67890", 
+    ["temperature", "humidity", "pressure"]
+)
+
+print("设备当前数据:", sensor_data["data"])
+
+# 读取设备运行状态
+status_data = read_device_data(
+    token,
+    "p12345",
+    "d67890",
+    ["switch", "battery_level", "signal_strength", "uptime"]
+)
+
+# 读取设备配置
+config_data = read_device_data(
+    token,
+    "p12345", 
+    "d67890",
+    ["temperature_threshold", "humidity_threshold", "reporting_interval"]
+)
+
+# 创建设备数据监控类
+class DeviceMonitor:
+    def __init__(self, token, product_key, device_key):
+        self.token = token
+        self.product_key = product_key
+        self.device_key = device_key
+    
+    def get_sensor_readings(self):
+        """获取传感器读数"""
+        return read_device_data(
+            self.token, 
+            self.product_key, 
+            self.device_key,
+            ["temperature", "humidity", "pressure", "light_intensity"]
+        )
+    
+    def get_device_status(self):
+        """获取设备状态"""
+        return read_device_data(
+            self.token,
+            self.product_key,
+            self.device_key,
+            ["switch", "battery_level", "signal_strength", "error_code"]
+        )
+    
+    def get_configuration(self):
+        """获取设备配置"""
+        return read_device_data(
+            self.token,
+            self.product_key,
+            self.device_key,
+            ["temperature_threshold", "reporting_interval", "alert_enabled"]
+        )
+
+# 使用监控类
+monitor = DeviceMonitor(token, "p12345", "d67890")
+sensor_readings = monitor.get_sensor_readings()
+device_status = monitor.get_device_status()
+configuration = monitor.get_configuration()
+
+# 批量读取多设备数据
+def read_multiple_devices(token, product_key, device_keys, identifiers):
+    """批量读取多个设备的数据"""
+    results = []
+    
+    for device_key in device_keys:
+        try:
+            data = read_device_data(token, product_key, device_key, identifiers)
+            results.append({
+                "deviceKey": device_key,
+                "data": data["data"],
+                "success": True
+            })
+        except Exception as e:
+            results.append({
+                "deviceKey": device_key,
+                "error": str(e),
+                "success": False
+            })
+    
+    return results
+
+# 批量读取温湿度数据
+multi_device_data = read_multiple_devices(
+    token,
+    "p12345",
+    ["d67890", "d67891", "d67892"],
+    ["temperature", "humidity"]
+)
+```
+
+```curl cURL
+# 读取温湿度数据
+curl -X POST "https://iot-api.quectelcn.com/v2/deviceshadow/r3/openapi/dm/readData" \
+  -H "Authorization: YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "productKey": "p12345",
+    "deviceKey": "d67890",
+    "identifiers": ["temperature", "humidity", "pressure"]
+  }'
+
+# 读取设备状态
+curl -X POST "https://iot-api.quectelcn.com/v2/deviceshadow/r3/openapi/dm/readData" \
+  -H "Authorization: YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "productKey": "p12345",
+    "deviceKey": "d67890",
+    "identifiers": ["switch", "battery_level", "signal_strength"]
+  }'
+```
+
+</CodeGroup>
+
+## 响应示例
+
+### 成功响应
+
+```json
+{
+  "code": 200,
+  "msg": "OK",
+  "data": {
+    "temperature": {
+      "value": 23.5,
+      "timestamp": "2023-12-15T14:30:25Z",
+      "quality": "GOOD"
+    },
+    "humidity": {
+      "value": 65.2,
+      "timestamp": "2023-12-15T14:30:25Z",
+      "quality": "GOOD"
+    },
+    "pressure": {
+      "value": 1013.25,
+      "timestamp": "2023-12-15T14:28:15Z",
+      "quality": "GOOD"
+    },
+    "switch": {
+      "value": true,
+      "timestamp": "2023-12-15T14:25:10Z",
+      "quality": "GOOD"
+    }
+  }
+}
+```
+
+### 部分数据缺失响应
+
+```json
+{
+  "code": 200,
+  "msg": "OK",
+  "data": {
+    "temperature": {
+      "value": 23.5,
+      "timestamp": "2023-12-15T14:30:25Z",
+      "quality": "GOOD"
+    },
+    "humidity": {
+      "value": null,
+      "timestamp": null,
+      "quality": "NO_DATA"
+    },
+    "pressure": {
+      "value": 1013.25,
+      "timestamp": "2023-12-15T14:28:15Z",
+      "quality": "STALE"
+    }
+  }
+}
+```
+
+## 数据质量标识
+
+| 质量标识 | 说明 | 含义 |
+|----------|------|------|
+| GOOD | 良好 | 数据新鲜且可靠 |
+| STALE | 过期 | 数据较旧，可能不准确 |
+| NO_DATA | 无数据 | 设备从未上报此属性 |
+| ERROR | 错误 | 数据读取出现错误 |
+
+## 查询策略
+
+<Tabs>
+  <Tab title="实时监控">
+    ```javascript
+    // 实时监控关键指标
+    async function monitorCriticalData(token, productKey, deviceKey) {
+      const criticalIdentifiers = [
+        'temperature', 'pressure', 'battery_level', 'error_code'
+      ];
+      
+      const data = await readDeviceData(token, productKey, deviceKey, criticalIdentifiers);
+      
+      // 检查异常值
+      const alerts = [];
+      if (data.data.temperature?.value > 50) {
+        alerts.push('温度过高');
+      }
+      if (data.data.battery_level?.value < 20) {
+        alerts.push('电量不足');
+      }
+      if (data.data.error_code?.value !== 0) {
+        alerts.push('设备故障');
+      }
+      
+      return { data: data.data, alerts };
+    }
+    ```
+  </Tab>
+  
+  <Tab title="状态诊断">
+    ```javascript
+    // 设备状态诊断
+    async function diagnoseDevice(token, productKey, deviceKey) {
+      const diagnosticIdentifiers = [
+        'cpu_usage', 'memory_usage', 'disk_space', 
+        'network_status', 'last_error', 'uptime'
+      ];
+      
+      const data = await readDeviceData(token, productKey, deviceKey, diagnosticIdentifiers);
+      
+      const diagnosis = {
+        overall: 'HEALTHY',
+        issues: [],
+        recommendations: []
+      };
+      
+      // 分析CPU使用率
+      if (data.data.cpu_usage?.value > 80) {
+        diagnosis.issues.push('CPU使用率过高');
+        diagnosis.overall = 'WARNING';
+      }
+      
+      // 分析内存使用
+      if (data.data.memory_usage?.value > 90) {
+        diagnosis.issues.push('内存不足');
+        diagnosis.overall = 'CRITICAL';
+      }
+      
+      return diagnosis;
+    }
+    ```
+  </Tab>
+  
+  <Tab title="配置检查">
+    ```javascript
+    // 设备配置检查
+    async function checkConfiguration(token, productKey, deviceKey) {
+      const configIdentifiers = [
+        'temperature_threshold', 'humidity_threshold',
+        'reporting_interval', 'alert_enabled', 'auto_update'
+      ];
+      
+      const data = await readDeviceData(token, productKey, deviceKey, configIdentifiers);
+      
+      const recommendations = [];
+      
+      // 检查上报间隔
+      if (data.data.reporting_interval?.value > 3600) {
+        recommendations.push('建议缩短数据上报间隔');
+      }
+      
+      // 检查告警是否启用
+      if (!data.data.alert_enabled?.value) {
+        recommendations.push('建议启用设备告警功能');
+      }
+      
+      return {
+        configuration: data.data,
+        recommendations
+      };
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## 使用场景
+
+<CardGroup cols={2}>
+  <Card title="实时监控" icon="chart-line">
+    监控设备当前状态和关键指标
+  </Card>
+  <Card title="故障诊断" icon="stethoscope">
+    读取设备运行状态进行故障分析
+  </Card>
+  <Card title="配置检查" icon="cog">
+    验证设备配置是否正确设置
+  </Card>
+  <Card title="数据同步" icon="sync">
+    在应用界面同步显示设备状态
+  </Card>
+</CardGroup>
+
+## 性能优化
+
+<AccordionGroup>
+  <Accordion title="选择性查询">
+    - 只查询必要的属性，避免获取所有数据
+    - 根据业务需求分组查询属性
+    - 使用缓存减少重复查询
+  </Accordion>
+  
+  <Accordion title="批量处理">
+    - 对多设备查询实施并发控制
+    - 使用异步处理提高效率
+    - 合理设置超时时间
+  </Accordion>
+  
+  <Accordion title="错误处理">
+    - 对离线设备实施降级策略
+    - 缓存历史数据作为备选
+    - 实施重试机制处理网络异常
+  </Accordion>
+</AccordionGroup>
+
+## 错误处理
+
+| 错误码 | 描述 | 解决方案 |
+|--------|------|----------|
+| 50006 | ProductKey为空 | 提供有效的productKey参数 |
+| 50007 | DeviceKey为空 | 提供有效的deviceKey参数 |
+| 50013 | 无效的属性标识符 | 验证identifiers是否在物模型中定义 |
+| 70017 | 产品不存在 | 验证产品存在且可访问 |
+| 70018 | 设备不存在 | 验证设备已注册 |
+| 70089 | 权限受限 | 检查SaaS应用设备授权 |
+| 60011 | 设备影子数据不存在 | 设备可能从未上报数据 |
+
+## 数据时效性检查
+
+```javascript
+// 检查数据是否过期
+function isDataStale(timestamp, maxAgeMinutes = 30) {
+  const dataTime = new Date(timestamp).getTime();
+  const currentTime = Date.now();
+  const maxAge = maxAgeMinutes * 60 * 1000;
+  
+  return (currentTime - dataTime) > maxAge;
+}
+
+// 使用示例
+const deviceData = await readDeviceData(token, 'p12345', 'd67890', ['temperature']);
+const tempData = deviceData.data.temperature;
+
+if (tempData.value !== null) {
+  if (isDataStale(tempData.timestamp, 10)) {
+    console.warn('温度数据已过期，可能不准确');
+  } else {
+    console.log(`当前温度: ${tempData.value}°C`);
+  }
+}
+```
+
+## 相关接口
+
+<CardGroup cols={2}>
+  <Card title="发送属性数据" href="/api-reference/endpoint/device-property-write">
+    向设备发送属性控制命令
+  </Card>
+  <Card title="发送服务数据" href="/api-reference/endpoint/device-service-invoke">
+    调用设备物模型服务
+  </Card>
+  <Card title="设备位置查询" href="/api-reference/endpoint/device-location">
+    查询设备位置信息
+  </Card>
+  <Card title="物模型管理" href="/api-reference/endpoint/thing-model">
+    查询产品物模型定义
+  </Card>
+</CardGroup>

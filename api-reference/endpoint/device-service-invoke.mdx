@@ -1,0 +1,400 @@
+---
+title: '发送下行物模型服务数据'
+openapi: 'POST /v2/deviceshadow/r3/openapi/dm/sendServiceData'
+---
+
+## 发送下行物模型服务数据
+
+调用设备的物模型服务，执行特定的设备功能。支持向多个设备同时发送服务调用，并提供缓存和覆盖选项。
+
+## 服务调用特点
+
+<CardGroup cols={3}>
+  <Card title="批量调用" icon="layer-group">
+    支持向多个设备同时发送服务调用
+  </Card>
+  <Card title="缓存机制" icon="database">
+    支持服务调用缓存，设备上线时自动执行
+  </Card>
+  <Card title="消息覆盖" icon="refresh">
+    可选择覆盖之前未执行的服务调用
+  </Card>
+</CardGroup>
+
+## 接口地址
+
+`POST /v2/deviceshadow/r3/openapi/dm/sendServiceData`
+
+## 请求参数
+
+| 参数名 | 类型 | 必填 | 说明 |
+|--------|------|------|------|
+| productKey | String | 是 | 产品PK |
+| deviceKeys | Array | 是 | 设备DK列表 |
+| data | String | 是 | 发送下行数据的具体内容 |
+| identifier | String | 是 | 服务标识符 |
+| qos | Integer | 否 | qos等级设置（不传默认为1） |
+| isCache | Boolean | 否 | 是否启用缓存，不传默认为false |
+| cacheTime | Integer | 否 | 缓存时间，单位s。当isCache为true时生效，默认值600 |
+| isOverride | Boolean | 否 | 是否覆盖前面发送的数据，不传默认为false |
+
+## 代码示例
+
+<CodeGroup>
+
+```javascript JavaScript
+async function sendServiceData(token, serviceData) {
+  const response = await fetch(
+    'https://iot-api.quectelcn.com/v2/deviceshadow/r3/openapi/dm/sendServiceData',
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': token,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(serviceData)
+    }
+  );
+  
+  return await response.json();
+}
+
+// 发送重启服务命令
+const rebootService = {
+  productKey: 'p12345',
+  deviceKeys: ['d67890', 'd67891'],
+  identifier: 'reboot',
+  data: JSON.stringify({ delay: 5 }),
+  qos: 1,
+  isCache: true,
+  cacheTime: 300
+};
+
+const serviceResult = await sendServiceData(token, rebootService);
+
+// 发送配置重置服务
+const resetConfigService = {
+  productKey: 'p12345',
+  deviceKeys: ['d67890'],
+  identifier: 'reset_config',
+  data: JSON.stringify({ confirmCode: "RESET123" }),
+  qos: 1,
+  isCache: false,
+  isOverride: true
+};
+
+const resetResult = await sendServiceData(token, resetConfigService);
+
+// 发送固件更新服务
+const otaService = {
+  productKey: 'p12345',
+  deviceKeys: ['d67890', 'd67891', 'd67892'],
+  identifier: 'firmware_update',
+  data: JSON.stringify({
+    version: "v2.1.0",
+    downloadUrl: "https://firmware.example.com/v2.1.0.bin",
+    checksum: "sha256:abcd1234..."
+  }),
+  qos: 1,
+  isCache: true,
+  cacheTime: 1800
+};
+
+const otaResult = await sendServiceData(token, otaService);
+```
+
+```python Python
+import requests
+import json
+
+def send_service_data(token, service_data):
+    """
+    发送下行物模型服务数据
+    
+    Args:
+        token: JWT认证token
+        service_data: 服务调用参数字典
+    
+    Returns:
+        服务调用结果
+    """
+    url = "https://iot-api.quectelcn.com/v2/deviceshadow/r3/openapi/dm/sendServiceData"
+    
+    headers = {
+        "Authorization": token,
+        "Content-Type": "application/json"
+    }
+    
+    response = requests.post(url, json=service_data, headers=headers)
+    response.raise_for_status()
+    
+    return response.json()
+
+# 发送重启服务命令
+reboot_service = {
+    "productKey": "p12345",
+    "deviceKeys": ["d67890", "d67891"],
+    "identifier": "reboot",
+    "data": json.dumps({"delay": 5}),
+    "qos": 1,
+    "isCache": True,
+    "cacheTime": 300
+}
+
+result = send_service_data(token, reboot_service)
+
+# 发送诊断服务
+diagnostic_service = {
+    "productKey": "p12345",
+    "deviceKeys": ["d67890"],
+    "identifier": "run_diagnostic",
+    "data": json.dumps({
+        "tests": ["memory", "storage", "network"],
+        "detailed": True
+    }),
+    "qos": 1,
+    "isCache": False
+}
+
+diagnostic_result = send_service_data(token, diagnostic_service)
+
+# 发送批量配置更新服务
+config_update_service = {
+    "productKey": "p12345",
+    "deviceKeys": ["d67890", "d67891", "d67892"],
+    "identifier": "update_config",
+    "data": json.dumps({
+        "reportingInterval": 300,
+        "alertThresholds": {
+            "temperature": 35.0,
+            "humidity": 80.0
+        }
+    }),
+    "qos": 1,
+    "isCache": True,
+    "cacheTime": 900,
+    "isOverride": True
+}
+
+config_result = send_service_data(token, config_update_service)
+```
+
+```curl cURL
+# 发送重启服务命令
+curl -X POST "https://iot-api.quectelcn.com/v2/deviceshadow/r3/openapi/dm/sendServiceData" \
+  -H "Authorization: YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "productKey": "p12345",
+    "deviceKeys": ["d67890", "d67891"],
+    "identifier": "reboot",
+    "data": "{\"delay\":5}",
+    "qos": 1,
+    "isCache": true,
+    "cacheTime": 300
+  }'
+
+# 发送固件更新服务
+curl -X POST "https://iot-api.quectelcn.com/v2/deviceshadow/r3/openapi/dm/sendServiceData" \
+  -H "Authorization: YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "productKey": "p12345",
+    "deviceKeys": ["d67890"],
+    "identifier": "firmware_update",
+    "data": "{\"version\":\"v2.1.0\",\"downloadUrl\":\"https://firmware.example.com/v2.1.0.bin\"}",
+    "qos": 1,
+    "isCache": true,
+    "cacheTime": 1800
+  }'
+```
+
+</CodeGroup>
+
+## 服务类型示例
+
+<Tabs>
+  <Tab title="设备控制服务">
+    ```json
+    {
+      "identifier": "reboot",
+      "data": "{\"delay\": 10}"
+    }
+    ```
+    重启设备服务，可指定延迟时间
+  </Tab>
+  
+  <Tab title="配置管理服务">
+    ```json
+    {
+      "identifier": "update_config",
+      "data": "{\"reportingInterval\": 300, \"threshold\": 25.5}"
+    }
+    ```
+    更新设备配置参数
+  </Tab>
+  
+  <Tab title="固件更新服务">
+    ```json
+    {
+      "identifier": "firmware_update",
+      "data": "{\"version\": \"v2.1.0\", \"downloadUrl\": \"https://fw.example.com/v2.1.0.bin\"}"
+    }
+    ```
+    触发设备固件更新
+  </Tab>
+  
+  <Tab title="诊断服务">
+    ```json
+    {
+      "identifier": "run_diagnostic",
+      "data": "{\"tests\": [\"memory\", \"network\"], \"detailed\": true}"
+    }
+    ```
+    执行设备自诊断测试
+  </Tab>
+</Tabs>
+
+## 响应示例
+
+### 成功响应
+
+```json
+{
+  "code": 200,
+  "msg": "OK",
+  "data": {
+    "messageId": "svc_1234567890abcdef",
+    "timestamp": "2023-12-15T14:30:25Z",
+    "status": "QUEUED",
+    "successCount": 2,
+    "failureCount": 0,
+    "results": [
+      {
+        "deviceKey": "d67890",
+        "status": "SUCCESS",
+        "messageId": "svc_1234567890abcd01"
+      },
+      {
+        "deviceKey": "d67891", 
+        "status": "SUCCESS",
+        "messageId": "svc_1234567890abcd02"
+      }
+    ]
+  }
+}
+```
+
+### 部分失败响应
+
+```json
+{
+  "code": 200,
+  "msg": "OK",
+  "data": {
+    "messageId": "svc_1234567890abcdef",
+    "timestamp": "2023-12-15T14:30:25Z",
+    "status": "PARTIAL_SUCCESS",
+    "successCount": 1,
+    "failureCount": 1,
+    "results": [
+      {
+        "deviceKey": "d67890",
+        "status": "SUCCESS",
+        "messageId": "svc_1234567890abcd01"
+      },
+      {
+        "deviceKey": "d67891",
+        "status": "FAILED",
+        "error": "设备离线"
+      }
+    ]
+  }
+}
+```
+
+## 缓存机制
+
+<Info>
+**服务缓存**: 当 `isCache` 为 true 时，服务调用会被缓存。设备上线后会自动执行缓存的服务调用。
+</Info>
+
+<Warning>
+**缓存时间**: 缓存时间到期后，未执行的服务调用将被自动清除。合理设置 `cacheTime` 以平衡存储成本和执行机会。
+</Warning>
+
+## QoS等级说明
+
+| QoS等级 | 说明 | 使用场景 |
+|---------|------|----------|
+| 0 | 至多一次传递 | 非关键性服务调用 |
+| 1 | 至少一次传递 | 重要的服务调用 |
+| 2 | 恰好一次传递 | 关键性服务调用 |
+
+## 错误处理
+
+| 错误码 | 描述 | 解决方案 |
+|--------|------|----------|
+| 50006 | ProductKey为空 | 提供有效的productKey参数 |
+| 50007 | DeviceKey为空 | 提供有效的deviceKeys数组 |
+| 50011 | 服务标识符无效 | 验证identifier是否在物模型中定义 |
+| 70017 | 产品不存在 | 验证产品存在且可访问 |
+| 70018 | 设备不存在 | 验证所有设备已注册 |
+| 70089 | 权限受限 | 检查SaaS应用设备授权 |
+| 50008 | 服务数据格式无效 | 确保数据遵循服务定义格式 |
+
+## 批量处理最佳实践
+
+<AccordionGroup>
+  <Accordion title="设备数量控制">
+    - 单次调用建议不超过100个设备
+    - 对于大量设备，分批处理以提高成功率
+    - 监控批量操作的成功率和失败原因
+  </Accordion>
+  
+  <Accordion title="缓存策略">
+    - 对于离线设备较多的场景启用缓存
+    - 根据设备上线频率设置合理的缓存时间
+    - 定期清理过期的缓存服务调用
+  </Accordion>
+  
+  <Accordion title="重试机制">
+    - 对失败的设备实施指数退避重试
+    - 区分暂时性错误和永久性错误
+    - 记录重试历史用于故障分析
+  </Accordion>
+</AccordionGroup>
+
+## 使用场景
+
+<CardGroup cols={2}>
+  <Card title="批量重启" icon="power-off">
+    对多个设备执行统一的重启操作
+  </Card>
+  <Card title="固件更新" icon="download">
+    批量推送固件更新到设备群组
+  </Card>
+  <Card title="配置同步" icon="sync">
+    将新配置同步到所有相关设备
+  </Card>
+  <Card title="诊断检测" icon="stethoscope">
+    批量执行设备健康检查和诊断
+  </Card>
+</CardGroup>
+
+## 相关接口
+
+<CardGroup cols={2}>
+  <Card title="发送属性数据" href="/api-reference/endpoint/device-property-write">
+    发送设备属性控制命令
+  </Card>
+  <Card title="读取设备数据" href="/api-reference/endpoint/device-data-read">
+    读取设备当前状态
+  </Card>
+  <Card title="物模型管理" href="/api-reference/endpoint/thing-model">
+    查询产品物模型定义
+  </Card>
+  <Card title="消息订阅" href="/api-reference/endpoint/message-subscription">
+    订阅服务调用结果通知
+  </Card>
+</CardGroup>

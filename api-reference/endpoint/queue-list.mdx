@@ -1,0 +1,631 @@
+---
+title: '查询队列列表'
+openapi: 'GET /v2/quecrule/r1/openapi/queue/list'
+---
+
+## 队列列表查询
+
+获取当前SaaS应用创建的所有消息队列列表，支持分页查询，便于管理和监控队列状态。
+
+## 查询参数
+
+<AccordionGroup>
+  <Accordion title="分页参数">
+    - **pageNum**: 分页码，默认为1
+    - **pageSize**: 每页大小，默认为10，最大100
+  </Accordion>
+</AccordionGroup>
+
+## 代码示例
+
+<CodeGroup>
+
+```javascript JavaScript
+async function listQueues(token, options = {}) {
+  const { pageNum = 1, pageSize = 20 } = options;
+  
+  const params = new URLSearchParams({
+    pageNum: pageNum.toString(),
+    pageSize: pageSize.toString()
+  });
+  
+  const response = await fetch(
+    `https://iot-api.quectelcn.com/v2/quecrule/r1/openapi/queue/list?${params}`,
+    {
+      headers: {
+        'Authorization': token,
+        'Content-Type': 'application/json'
+      }
+    }
+  );
+  
+  return await response.json();
+}
+
+// 列出所有队列
+const queues = await listQueues(token, { pageSize: 50 });
+console.log(`找到 ${queues.total} 个队列`);
+
+queues.data.forEach(queue => {
+  console.log(`队列: ${queue.queueName} - 状态: ${queue.status} - 创建时间: ${queue.createTime}`);
+});
+
+// 查找特定名称的队列
+function findQueueByName(queues, queueName) {
+  return queues.data.find(queue => queue.queueName === queueName);
+}
+
+const deviceDataQueue = findQueueByName(queues, 'iot-device-data');
+if (deviceDataQueue) {
+  console.log(`找到队列: ${deviceDataQueue.queueName}`);
+} else {
+  console.log('未找到指定队列');
+}
+
+// 队列监控管理器
+class QueueMonitor {
+  constructor(token) {
+    this.token = token;
+  }
+  
+  async getAllQueues() {
+    const allQueues = [];
+    let pageNum = 1;
+    const pageSize = 50;
+    
+    while (true) {
+      const result = await listQueues(this.token, { pageNum, pageSize });
+      allQueues.push(...result.data);
+      
+      if (pageNum >= result.pages) break;
+      pageNum++;
+    }
+    
+    return allQueues;
+  }
+  
+  async getQueueStatistics() {
+    const allQueues = await this.getAllQueues();
+    
+    const stats = {
+      total: allQueues.length,
+      byStatus: {},
+      byEnvironment: {},
+      byType: {},
+      health: {
+        healthy: 0,
+        warning: 0,
+        critical: 0
+      }
+    };
+    
+    allQueues.forEach(queue => {
+      // 状态统计
+      stats.byStatus[queue.status] = (stats.byStatus[queue.status] || 0) + 1;
+      
+      // 环境统计
+      const env = this.extractEnvironment(queue.queueName);
+      if (env) {
+        stats.byEnvironment[env] = (stats.byEnvironment[env] || 0) + 1;
+      }
+      
+      // 类型统计
+      const type = this.extractType(queue.queueName);
+      if (type) {
+        stats.byType[type] = (stats.byType[type] || 0) + 1;
+      }
+      
+      // 健康状况评估
+      const health = this.assessQueueHealth(queue);
+      stats.health[health]++;
+    });
+    
+    return stats;
+  }
+  
+  extractEnvironment(queueName) {
+    const envPattern = /^(dev|test|prod|staging)-/;
+    const match = queueName.match(envPattern);
+    return match ? match[1] : 'unknown';
+  }
+  
+  extractType(queueName) {
+    if (queueName.includes('-data')) return 'data';
+    if (queueName.includes('-alerts')) return 'alerts';
+    if (queueName.includes('-events')) return 'events';
+    if (queueName.includes('-status')) return 'status';
+    return 'other';
+  }
+  
+  assessQueueHealth(queue) {
+    // 基于消息数量和消费者数量评估健康状况
+    const messageCount = queue.messageCount || 0;
+    const consumerCount = queue.consumerCount || 0;
+    
+    if (messageCount > 10000 && consumerCount === 0) {
+      return 'critical'; // 大量消息堆积且无消费者
+    }
+    
+    if (messageCount > 5000 || consumerCount === 0) {
+      return 'warning'; // 消息较多或无消费者
+    }
+    
+    return 'healthy';
+  }
+  
+  async findInactiveQueues() {
+    const allQueues = await this.getAllQueues();
+    const now = new Date();
+    const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    
+    return allQueues.filter(queue => {
+      const lastActive = new Date(queue.lastActiveTime);
+      return lastActive < oneDayAgo || queue.messageCount === 0;
+    });
+  }
+  
+  async generateHealthReport() {
+    const stats = await this.getQueueStatistics();
+    const inactiveQueues = await this.findInactiveQueues();
+    
+    const report = {
+      timestamp: new Date().toISOString(),
+      overview: stats,
+      issues: {
+        inactiveQueues: inactiveQueues.length,
+        criticalQueues: stats.health.critical,
+        warningQueues: stats.health.warning
+      },
+      recommendations: []
+    };
+    
+    // 生成建议
+    if (inactiveQueues.length > 0) {
+      report.recommendations.push(`发现 ${inactiveQueues.length} 个非活跃队列，建议检查是否需要清理`);
+    }
+    
+    if (stats.health.critical > 0) {
+      report.recommendations.push(`${stats.health.critical} 个队列处于关键状态，需要立即处理`);
+    }
+    
+    if (stats.health.warning > 0) {
+      report.recommendations.push(`${stats.health.warning} 个队列有警告，建议优化消费者配置`);
+    }
+    
+    return report;
+  }
+}
+
+// 使用队列监控器
+const monitor = new QueueMonitor(token);
+
+// 获取队列统计
+const stats = await monitor.getQueueStatistics();
+console.log('队列统计信息:', stats);
+
+// 生成健康报告
+const healthReport = await monitor.generateHealthReport();
+console.log('队列健康报告:', healthReport);
+
+// 查找非活跃队列
+const inactiveQueues = await monitor.findInactiveQueues();
+console.log(`发现 ${inactiveQueues.length} 个非活跃队列`);
+```
+
+```python Python
+import requests
+from datetime import datetime, timedelta
+
+def list_queues(token, page_num=1, page_size=20):
+    """列出所有消息队列"""
+    url = "https://iot-api.quectelcn.com/v2/quecrule/r1/openapi/queue/list"
+    
+    params = {
+        "pageNum": page_num,
+        "pageSize": page_size
+    }
+    
+    headers = {
+        "Authorization": token,
+        "Content-Type": "application/json"
+    }
+    
+    response = requests.get(url, params=params, headers=headers)
+    response.raise_for_status()
+    
+    return response.json()
+
+# 列出所有队列
+queues = list_queues(token, page_size=50)
+print(f"找到 {queues['total']} 个队列")
+
+for queue in queues['data']:
+    print(f"队列: {queue['queueName']} - 状态: {queue['status']}")
+
+# 检查队列是否存在
+def queue_exists(token, queue_name):
+    """检查指定名称的队列是否存在"""
+    try:
+        queues = list_queues(token, page_size=100)
+        return any(queue['queueName'] == queue_name for queue in queues['data'])
+    except Exception:
+        return False
+
+# 获取队列统计信息
+def get_queue_statistics(token):
+    """获取队列统计信息"""
+    queues = list_queues(token, page_size=100)
+    
+    stats = {
+        "total": queues["total"],
+        "active": 0,
+        "inactive": 0,
+        "by_environment": {}
+    }
+    
+    for queue in queues["data"]:
+        if queue["status"] == "ACTIVE":
+            stats["active"] += 1
+        else:
+            stats["inactive"] += 1
+        
+        # 按环境分类统计
+        if "-" in queue["queueName"]:
+            env = queue["queueName"].split("-")[0]
+            if env not in stats["by_environment"]:
+                stats["by_environment"][env] = 0
+            stats["by_environment"][env] += 1
+    
+    return stats
+
+stats = get_queue_statistics(token)
+print(f"队列统计: 总计{stats['total']}, 活跃{stats['active']}, 非活跃{stats['inactive']}")
+
+# 队列分析器
+class QueueAnalyzer:
+    def __init__(self, token):
+        self.token = token
+    
+    def get_all_queues(self):
+        """获取所有队列"""
+        all_queues = []
+        page_num = 1
+        page_size = 50
+        
+        while True:
+            result = list_queues(self.token, page_num, page_size)
+            all_queues.extend(result['data'])
+            
+            if page_num >= result.get('pages', 1):
+                break
+            page_num += 1
+        
+        return all_queues
+    
+    def analyze_queue_usage(self):
+        """分析队列使用情况"""
+        queues = self.get_all_queues()
+        
+        usage_analysis = {
+            "total_queues": len(queues),
+            "message_distribution": {},
+            "consumer_distribution": {},
+            "environment_analysis": {},
+            "type_analysis": {},
+            "performance_issues": []
+        }
+        
+        for queue in queues:
+            queue_name = queue['queueName']
+            message_count = queue.get('messageCount', 0)
+            consumer_count = queue.get('consumerCount', 0)
+            
+            # 消息分布分析
+            if message_count == 0:
+                usage_analysis["message_distribution"]["empty"] = usage_analysis["message_distribution"].get("empty", 0) + 1
+            elif message_count < 100:
+                usage_analysis["message_distribution"]["low"] = usage_analysis["message_distribution"].get("low", 0) + 1
+            elif message_count < 1000:
+                usage_analysis["message_distribution"]["medium"] = usage_analysis["message_distribution"].get("medium", 0) + 1
+            else:
+                usage_analysis["message_distribution"]["high"] = usage_analysis["message_distribution"].get("high", 0) + 1
+            
+            # 消费者分布分析
+            if consumer_count == 0:
+                usage_analysis["consumer_distribution"]["no_consumers"] = usage_analysis["consumer_distribution"].get("no_consumers", 0) + 1
+            elif consumer_count <= 2:
+                usage_analysis["consumer_distribution"]["few_consumers"] = usage_analysis["consumer_distribution"].get("few_consumers", 0) + 1
+            else:
+                usage_analysis["consumer_distribution"]["many_consumers"] = usage_analysis["consumer_distribution"].get("many_consumers", 0) + 1
+            
+            # 环境分析
+            env = self._extract_environment(queue_name)
+            usage_analysis["environment_analysis"][env] = usage_analysis["environment_analysis"].get(env, 0) + 1
+            
+            # 类型分析
+            queue_type = self._extract_queue_type(queue_name)
+            usage_analysis["type_analysis"][queue_type] = usage_analysis["type_analysis"].get(queue_type, 0) + 1
+            
+            # 性能问题检测
+            if message_count > 5000 and consumer_count == 0:
+                usage_analysis["performance_issues"].append({
+                    "queue": queue_name,
+                    "issue": "消息堆积严重且无消费者",
+                    "message_count": message_count
+                })
+            elif message_count > 10000:
+                usage_analysis["performance_issues"].append({
+                    "queue": queue_name,
+                    "issue": "消息数量过多",
+                    "message_count": message_count
+                })
+        
+        return usage_analysis
+    
+    def _extract_environment(self, queue_name):
+        """提取环境信息"""
+        if queue_name.startswith('dev-'):
+            return 'development'
+        elif queue_name.startswith('test-'):
+            return 'testing'
+        elif queue_name.startswith('prod-'):
+            return 'production'
+        elif queue_name.startswith('staging-'):
+            return 'staging'
+        else:
+            return 'unknown'
+    
+    def _extract_queue_type(self, queue_name):
+        """提取队列类型"""
+        if 'data' in queue_name:
+            return 'data'
+        elif 'alert' in queue_name:
+            return 'alerts'
+        elif 'event' in queue_name:
+            return 'events'
+        elif 'status' in queue_name:
+            return 'status'
+        else:
+            return 'other'
+    
+    def find_unused_queues(self, days=7):
+        """查找未使用的队列"""
+        queues = self.get_all_queues()
+        cutoff_date = datetime.now() - timedelta(days=days)
+        
+        unused_queues = []
+        for queue in queues:
+            last_active_time = queue.get('lastActiveTime')
+            if last_active_time:
+                last_time = datetime.fromisoformat(last_active_time.replace('Z', '+00:00'))
+                if last_time < cutoff_date:
+                    unused_queues.append(queue)
+            elif queue.get('messageCount', 0) == 0:
+                unused_queues.append(queue)
+        
+        return unused_queues
+    
+    def generate_optimization_report(self):
+        """生成优化建议报告"""
+        usage_analysis = self.analyze_queue_usage()
+        unused_queues = self.find_unused_queues()
+        
+        report = {
+            "analysis_date": datetime.now().isoformat(),
+            "summary": usage_analysis,
+            "optimization_recommendations": []
+        }
+        
+        # 生成优化建议
+        if unused_queues:
+            report["optimization_recommendations"].append(
+                f"发现 {len(unused_queues)} 个未使用的队列，建议清理以节省资源"
+            )
+        
+        no_consumers = usage_analysis["consumer_distribution"].get("no_consumers", 0)
+        if no_consumers > 0:
+            report["optimization_recommendations"].append(
+                f"{no_consumers} 个队列没有消费者，建议检查订阅配置"
+            )
+        
+        if usage_analysis["performance_issues"]:
+            report["optimization_recommendations"].append(
+                f"发现 {len(usage_analysis['performance_issues'])} 个性能问题需要处理"
+            )
+        
+        return report
+
+# 使用队列分析器
+analyzer = QueueAnalyzer(token)
+
+# 分析队列使用情况
+usage_analysis = analyzer.analyze_queue_usage()
+print("队列使用分析:", usage_analysis)
+
+# 查找未使用的队列
+unused_queues = analyzer.find_unused_queues(days=30)
+print(f"发现 {len(unused_queues)} 个30天未使用的队列")
+
+# 生成优化报告
+optimization_report = analyzer.generate_optimization_report()
+print("队列优化报告:", optimization_report)
+```
+
+```curl cURL
+# 查询所有队列
+curl -X GET "https://iot-api.quectelcn.com/v2/quecrule/r1/openapi/queue/list?pageNum=1&pageSize=20" \
+  -H "Authorization: YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json"
+
+# 查询大页面队列列表
+curl -X GET "https://iot-api.quectelcn.com/v2/quecrule/r1/openapi/queue/list?pageNum=1&pageSize=100" \
+  -H "Authorization: YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json"
+```
+
+</CodeGroup>
+
+## 响应示例
+
+```json
+{
+  "code": 200,
+  "msg": "OK",
+  "data": [
+    {
+      "queueId": "queue_1234567890abcdef",
+      "queueName": "iot-device-data",
+      "queueDesc": "设备数据处理队列",
+      "status": "ACTIVE",
+      "createTime": "2023-12-15T14:30:25Z",
+      "messageCount": 1250,
+      "consumerCount": 2,
+      "lastActiveTime": "2023-12-15T15:45:30Z"
+    },
+    {
+      "queueId": "queue_1234567890abcd01",
+      "queueName": "iot-device-alerts",
+      "queueDesc": "设备告警事件队列",
+      "status": "ACTIVE",
+      "createTime": "2023-12-15T14:35:10Z",
+      "messageCount": 85,
+      "consumerCount": 1,
+      "lastActiveTime": "2023-12-15T15:42:15Z"
+    },
+    {
+      "queueId": "queue_1234567890abcd02",
+      "queueName": "prod-sensor-data",
+      "queueDesc": "生产环境传感器数据队列",
+      "status": "ACTIVE",
+      "createTime": "2023-12-15T14:40:10Z",
+      "messageCount": 3420,
+      "consumerCount": 3,
+      "lastActiveTime": "2023-12-15T15:44:22Z"
+    }
+  ],
+  "pageNum": 1,
+  "pageSize": 20,
+  "total": 15,
+  "pages": 1
+}
+```
+
+## 队列状态说明
+
+<AccordionGroup>
+  <Accordion title="ACTIVE - 活跃">
+    队列正常工作，可以接收和处理消息
+  </Accordion>
+  
+  <Accordion title="INACTIVE - 非活跃">
+    队列已创建但未使用或暂停使用
+  </Accordion>
+  
+  <Accordion title="ERROR - 错误">
+    队列出现错误，需要检查配置或重新创建
+  </Accordion>
+  
+  <Accordion title="DELETING - 删除中">
+    队列正在删除过程中，即将移除
+  </Accordion>
+</AccordionGroup>
+
+## 性能监控指标
+
+<CardGroup cols={2}>
+  <Card title="消息数量" icon="envelope">
+    **messageCount**: 队列中待处理的消息数量
+  </Card>
+  <Card title="消费者数量" icon="users">
+    **consumerCount**: 当前连接的消费者数量
+  </Card>
+  <Card title="最后活跃时间" icon="clock">
+    **lastActiveTime**: 队列最后一次有消息活动的时间
+  </Card>
+  <Card title="队列大小" icon="database">
+    **queueSize**: 队列占用的存储空间大小
+  </Card>
+</CardGroup>
+
+## 健康检查脚本
+
+```javascript
+// 队列健康检查
+async function checkQueueHealth(token, queueName) {
+  const queues = await listQueues(token, { pageSize: 100 });
+  const queue = queues.data.find(q => q.queueName === queueName);
+  
+  if (!queue) {
+    return { status: 'NOT_FOUND', queue: null };
+  }
+  
+  const health = {
+    status: 'HEALTHY',
+    issues: [],
+    metrics: {
+      messageCount: queue.messageCount,
+      consumerCount: queue.consumerCount,
+      messagesPerConsumer: queue.consumerCount > 0 ? 
+        Math.round(queue.messageCount / queue.consumerCount) : queue.messageCount
+    }
+  };
+  
+  // 检查消息积压
+  if (queue.messageCount > 10000) {
+    health.status = 'WARNING';
+    health.issues.push('消息积压过多');
+  }
+  
+  // 检查消费者数量
+  if (queue.consumerCount === 0 && queue.messageCount > 0) {
+    health.status = 'CRITICAL';
+    health.issues.push('无消费者处理消息');
+  }
+  
+  // 检查最后活跃时间
+  const lastActive = new Date(queue.lastActiveTime);
+  const now = new Date();
+  const inactiveMinutes = (now - lastActive) / (1000 * 60);
+  
+  if (inactiveMinutes > 60) {
+    health.status = 'WARNING';
+    health.issues.push('队列长时间无活动');
+  }
+  
+  return { status: 'FOUND', queue, health };
+}
+```
+
+## 管理建议
+
+<CardGroup cols={2}>
+  <Card title="定期清理" icon="broom">
+    定期检查和清理不再使用的队列
+  </Card>
+  <Card title="性能监控" icon="chart-line">
+    监控队列消息数量和处理速度
+  </Card>
+  <Card title="容量规划" icon="server">
+    根据业务增长预估队列容量需求
+  </Card>
+  <Card title="权限管理" icon="shield-alt">
+    合理分配队列的查看和管理权限
+  </Card>
+</CardGroup>
+
+## 相关接口
+
+<CardGroup cols={2}>
+  <Card title="创建消息队列" href="/api-reference/endpoint/queue-create">
+    创建新的消息队列
+  </Card>
+  <Card title="创建订阅" href="/api-reference/endpoint/subscription-create">
+    为队列创建消息订阅
+  </Card>
+  <Card title="订阅列表" href="/api-reference/endpoint/subscription-list">
+    查看队列的订阅情况
+  </Card>
+  <Card title="设备管理" href="/api-reference/endpoint/device-mgmt">
+    管理发送消息的设备
+  </Card>
+</CardGroup>

@@ -1,33 +1,220 @@
 ---
-title: 'Introduction'
-description: 'Example section for showcasing API endpoints'
+title: 'OpenAPI接入说明'
+description: 'SaaS应用相关OpenAPI主要用于SaaS系统对接集成，实现通过SaaS应用进行产品设备管理与远程控制设备。'
 ---
 
+# 移远通信IoT SaaS API
+
+SaaS应用相关OpenAPI主要用于SaaS系统对接集成，实现通过SaaS应用进行产品设备管理与远程控制设备。
+
+## 快速开始
+### 前置步骤
+<Steps>
+  <Step title="创建SaaS应用">
+    在SaaS开发->SaaS管理菜单下创建SaaS应用
+  </Step>
+  <Step title="开通API服务">
+    在SaaS详情->服务页面中开通并授权需要使用的API服务包
+  </Step>
+  <Step title="授权产品数据">
+    在SaaS详情->产品页面中授权该SaaS应用可访问的产品数据
+  </Step>
+  <Step title="获取访问凭证">
+    获取AccessKey与AccessSecret，用于换取访问Token
+  </Step>
+</Steps>
+
+## 身份认证
+### 获取访问令牌
+#### 接口信息
+| 参数           | 值                                                                                     |
+|--------------|--------------------------------------------------------------------------------------|
+| **请求方法**     | `GET`                                                                                |
+| **接口地址**     | `https://iot-api.quectelcn.com/v2/quecauth/accessKeyAuthrize/accessKeyLogin`       |
+| **请求头**      | `content-type: application/json`                                                    |
+
+#### 请求参数
+| 参数名        | 类型     | 必填 | 位置    | 说明                     |
+|-------------|--------|-----|-------|------------------------|
+| grant_type  | String | 是   | Query | 授权类型，固定值：`password` |
+| username    | String | 是   | Query | 用户名（按规则生成）           |
+| password    | String | 是   | Query | 密码（按规则生成）            |
+
+#### Username生成规则
+<Accordion title="Username格式详解">
+
+**格式**: `ver=1&auth_mode=accessKey&sign_method=sha256&access_key=${AccessKey}&timestamp=${timestamp}`
+
+**步骤**:
+1. 将AccessKey替换为您的SaaS应用AccessKey
+2. 将timestamp替换为当前毫秒级时间戳
+3. 对整个字符串进行URL编码
+
+**示例**:
+```
+原始: ver=1&auth_mode=accessKey&sign_method=sha256&access_key=24b9zicjuns41H6MDg71AMnP&timestamp=1743059249391
+编码后: ver%3D1%26auth_mode%3DaccessKey%26sign_method%3Dsha256%26access_key%3D24b9zicjuns41H6MDg71AMnP%26timestamp%3D1743059249391
+```
+
+</Accordion>
+
+#### Password生成规则
+<Accordion title="Password算法详解">
+
+**算法**: `sha256("${username}${AccessSecret}")`
+
+**步骤**:
+1. 将生成的username（URL编码前的原始字符串）与AccessSecret拼接
+2. 对拼接后的字符串计算SHA256哈希值
+
+**示例**:
+```
+输入: ver=1&auth_mode=accessKey&sign_method=sha256&access_key=24b9zicjuns41H6MDg71AMnP&timestamp=17430592493916AE3p2SnA9ShP7ofigrccoeeks8DDoteJ1jUUTEz
+SHA256: 34fe86986230670cba424cadd01ded50f04929de3bfb0b0aef033ccee314fed1
+```
+
+</Accordion>
+
+#### 响应参数
+| **参数**     | **参数说明**                         | **类型** | **schema** |
+|------------|----------------------------------|--------|----------|
+| code       | 响应码<br/>200代表成功，其他为错误码        | object |          |
+| access_token | 成功返回token值                      | string |          |
+| msg        | 提示信息                             | string |          |
+| token_type | 固定为“jwt”                          | string |          |
+| expire_in  | 过期时间                             | string |          |
+
+#### 响应状态码
+| **状态码** | **说明**                |
+| ---------- | ----------------------- |
+| 200        | OK                      |
+| 401        | Unauthorized            |
+| 403        | Forbidden               |
+| 404        | Not Found               |
+| 50000      | service exception       |
+| 50005      | param check error       |
+| 70000      | Hub 服务不可用          |
+| 90047      | AccessKey didn't exists |
+
+#### 请求示例
+```http
+GET /v2/quecauth/accessKeyAuthrize/accessKeyLogin?username=ver%3D1%26auth_mode%3DaccessKey%26sign_method%3Dsha256%26access_key%3D24b9zicjuns41H6MDg71AMnP%26timestamp%3D1743059249391&password=34fe86986230670cba424cadd01ded50f04929de3bfb0b0aef033ccee314fed1&grant_type=password
+Host: iot-api.quectelcn.com
+Content-Type: application/json
+```
+
+#### 响应示例
+```json
+// 成功响应
+{
+    "msg": "OK",
+    "access_token": "QJWT eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIyOTQ5NCIsImlhdCI6MTYxODQ3Mjk2MiwianRpIjoiYjVhMmRhNjgtMzI0Ni00ZWRjLWEwZTktOTEyZjdjMDFkMmMzIiwidXR5IjoicGVyIiwiZXhwIjoxNjE4NTU5MzYyLCJhbSI6IkFjY2Vzc0tleSIsInNwIjoiIn0.JUQjUKlaDepazh7JssvRZKDiA1UL83VK8WECj86TI_I",
+    "code": 200,
+    "scope": "",
+    "token_type": "jwt",
+    "expires_in": 86400
+}
+
+// 失败响应
+{
+    "msg": "AccessKey didn't exists",
+    "code": 90047,
+    "error": "AccessKey didn't exists"
+}
+```
+
 <Note>
-  If you're not looking to build API reference documentation, you can delete
-  this section by removing the api-reference folder.
+**Token管理提示**: Token有效期为2小时，建议SaaS系统每1小时通过刷新token接口换取新的token，从而保证长期有效。
 </Note>
 
-## Welcome
+## API调用示例
+以下以获取产品已发布物模型数据接口举例：
 
-There are two ways to build API documentation: [OpenAPI](https://mintlify.com/docs/api-playground/openapi/setup) and [MDX components](https://mintlify.com/docs/api-playground/mdx/configuration). For the starter kit, we are using the following OpenAPI specification.
+### 接口信息
+| 参数           | 值                                                                                   |
+|--------------|------------------------------------------------------------------------------------|
+| **接口地址**     | `https://iot-api.quectelcn.com/v2/quectsl/openapi/product/export/tslFile`       |
+| **请求方法**     | `GET`                                                                              |
+| **请求头**      | `content-type: application/json`<br/>`Authorization:{获取的token}`        |
 
-<Card
-  title="Plant Store Endpoints"
-  icon="leaf"
-  href="https://github.com/mintlify/starter/blob/main/api-reference/openapi.json"
->
-  View the OpenAPI specification file
-</Card>
+#### 请求参数
 
-## Authentication
+| **参数**   | **参数类型** | **是否必填** | **参数位置** | **参数描述**        |
+|----------|------------|------------|------------|-------------------|
+| productKey | String     | 是          | Query      | 产品key             |
+| language   | String     | 否          | Query      | 语言:CN/EN(默认:CN) |
 
-All API endpoints are authenticated using Bearer tokens and picked up from the specification file.
+#### 响应参数
+| **参数** | **参数说明** | **类型**   | **schema**    |
+|--------|------------|----------|-------------|
+| code   | 返回码       | object   |             |
+| data   | 对象         | jsonObject | 物模型tsl定义 |
+| msg    | 提示信息     | string   |             |
+| pageNum | 当前页数     | object   |             |
+| pageSize | 每页数量     | object   |             |
+| pages  | 总页数       | object   |             |
+| total  | 总数         | object   |             |
 
-```json
-"security": [
-  {
-    "bearerAuth": []
-  }
-]
+#### 响应状态码
+| **状态码** | **说明**                                                     |
+|----------|-----------------------------------------------------------|
+| 200      | OK                                                        |
+| 401      | Unauthorized                                              |
+| 403      | Forbidden                                                 |
+| 404      | Not Found                                                 |
+| 50000    | service exception                                         |
+| 50005    | param check error.                                        |
+| 50006    | The productID or productKey is empty.                     |
+| 50007    | The deviceID, productKey or deviceKey is empty.          |
+| 70000    | Hub 服务不可用                                               |
+| 70017    | Product does not exist.                                   |
+| 70063    | The device with transparent transmission mode does not support sending TSL model data. |
+| 70089    | You have limited permission to operate this project or product or device. |
+
+#### 请求示例
+```http
+GET /v2/quectsl/openapi/product/export/tslFile?productKey=p11v14
+Host: iot-api.quectelcn.com
+Content-Type: application/json
+Authorization: Bearer QJWT eyJhbGciOiJIUzI1NiJ9...
 ```
+
+#### 响应示例
+```json
+{
+        "code": 200,
+        "msg": "OK",
+        "data": {
+                "profile": {
+                        "tslVersion": "1.2.0",
+                        "productKey": "p11v14",
+                        "version": "20250324120550539"
+                },
+                "properties": [{
+                        "specs": [{
+                                        "dataType": "BOOL",
+                                        "name": "开启",
+                                        "value": "true"
+                                },
+                                {
+                                        "dataType": "BOOL",
+                                        "name": "关闭",
+                                        "value": "false"
+                                }
+                        ],
+                        "code": "switch",
+                        "dataType": "BOOL",
+                        "name": "开关",
+                        "subType": "RW",
+                        "id": 1,
+                        "sort": 1,
+                        "type": "PROPERTY",
+                        "desc": ""
+                }]
+        }
+}
+```
+
+## 技术支持
+如需技术支持和咨询:
+- 邮箱: support@quectel.com
