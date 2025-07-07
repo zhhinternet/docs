@@ -1,0 +1,1066 @@
+---
+title: '验证设备绑定码有效性'
+openapi: 'POST /v2/binding/enterpriseapi/verifyBindingCode'
+---
+
+## 验证设备绑定码有效性
+
+验证设备绑定码（bindingCode）的有效性，用于确认设备与平台的绑定关系。此接口支持在绑定过程中实时验证绑定码，确保绑定操作的安全性和有效性。
+
+## 绑定码机制
+
+<CardGroup cols={2}>
+  <Card title="绑定码生成" icon="key">
+    设备生成唯一的绑定码用于身份验证
+  </Card>
+  <Card title="实时验证" icon="shield-check">
+    平台实时验证绑定码的有效性
+  </Card>
+</CardGroup>
+
+## 验证场景
+
+<Info>
+**验证参数说明**: 
+- **bindingCode**: 设备生成的绑定码
+- **Product Key**: 产品标识，确定产品类型
+- **Device Key**: 设备标识，确定具体设备
+- **绑定状态**: 控制设备端是否接收绑定状态反馈
+</Info>
+
+## 接口地址
+
+`POST /v2/binding/enterpriseapi/verifyBindingCode`
+
+## 请求参数
+
+| 参数名 | 类型 | 必填 | 说明 |
+|--------|------|------|------|
+| bindingCode | String | 是 | 设备绑定码 |
+| pk | String | 是 | Product Key，产品标识 |
+| dk | String | 是 | Device Key，设备标识 |
+| isBinding | Integer | 否 | 是否正在绑定设备：0-否（默认），1-是 |
+
+## 代码示例
+
+<CodeGroup>
+
+```javascript JavaScript
+async function verifyBindingCode(token, bindingCode, pk, dk, isBinding = 0) {
+  const response = await fetch(
+    `https://iot-api.quectelcn.com/v2/binding/enterpriseapi/verifyBindingCode?bindingCode=${bindingCode}&pk=${pk}&dk=${dk}&isBinding=${isBinding}`,
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': token,
+        'Content-Type': 'application/json'
+      }
+    }
+  );
+  
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  }
+  
+  return await response.json();
+}
+
+// 验证绑定码（不通知设备端）
+async function verifyCode(token, bindingCode, pk, dk) {
+  try {
+    const result = await verifyBindingCode(token, bindingCode, pk, dk, 0);
+    
+    if (result.code === 200) {
+      console.log('绑定码验证成功');
+      return { valid: true, result };
+    } else {
+      console.log('绑定码验证失败:', result.msg);
+      return { valid: false, result };
+    }
+  } catch (error) {
+    console.error('验证绑定码时发生错误:', error);
+    return { valid: false, error: error.message };
+  }
+}
+
+// 验证绑定码并通知设备端
+async function verifyCodeWithNotification(token, bindingCode, pk, dk) {
+  try {
+    const result = await verifyBindingCode(token, bindingCode, pk, dk, 1);
+    
+    if (result.code === 200) {
+      console.log('绑定码验证成功，设备端将收到绑定状态通知');
+      return { valid: true, result };
+    } else {
+      console.log('绑定码验证失败:', result.msg);
+      return { valid: false, result };
+    }
+  } catch (error) {
+    console.error('验证绑定码时发生错误:', error);
+    return { valid: false, error: error.message };
+  }
+}
+
+// 批量验证绑定码
+async function batchVerifyBindingCodes(token, bindingRequests) {
+  const results = [];
+  
+  for (const request of bindingRequests) {
+    try {
+      const result = await verifyBindingCode(
+        token,
+        request.bindingCode,
+        request.pk,
+        request.dk,
+        request.isBinding || 0
+      );
+      
+      results.push({
+        ...request,
+        success: true,
+        valid: result.code === 200,
+        result
+      });
+      
+      console.log(`设备 ${request.dk} 绑定码验证${result.code === 200 ? '成功' : '失败'}`);
+    } catch (error) {
+      results.push({
+        ...request,
+        success: false,
+        valid: false,
+        error: error.message
+      });
+      
+      console.error(`设备 ${request.dk} 绑定码验证出错:`, error.message);
+    }
+  }
+  
+  return results;
+}
+
+// 绑定码验证管理器
+class BindingCodeValidator {
+  constructor(token) {
+    this.token = token;
+  }
+  
+  async verify(bindingCode, pk, dk, isBinding = 0) {
+    return await verifyBindingCode(this.token, bindingCode, pk, dk, isBinding);
+  }
+  
+  async verifyAndBind(bindingCode, pk, dk) {
+    // 先验证绑定码
+    const verifyResult = await this.verify(bindingCode, pk, dk, 0);
+    
+    if (verifyResult.code !== 200) {
+      throw new Error(`绑定码验证失败: ${verifyResult.msg}`);
+    }
+    
+    // 验证成功后，通知设备端进行绑定
+    const bindResult = await this.verify(bindingCode, pk, dk, 1);
+    
+    return {
+      verifyResult,
+      bindResult,
+      success: bindResult.code === 200
+    };
+  }
+  
+  async verifyWithRetry(bindingCode, pk, dk, maxRetries = 3, isBinding = 0) {
+    let lastError;
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const result = await this.verify(bindingCode, pk, dk, isBinding);
+        
+        if (result.code === 200) {
+          return result;
+        } else {
+          lastError = new Error(result.msg || '验证失败');
+        }
+      } catch (error) {
+        lastError = error;
+        
+        if (attempt < maxRetries) {
+          // 指数退避
+          await this.sleep(Math.pow(2, attempt) * 1000);
+        }
+      }
+    }
+    
+    throw lastError;
+  }
+  
+  async batchVerify(requests) {
+    return await batchVerifyBindingCodes(this.token, requests);
+  }
+  
+  sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+}
+
+// 使用示例
+const validator = new BindingCodeValidator(token);
+
+// 单个绑定码验证
+const singleResult = await validator.verify('BC123456789', 'p12345', 'd67890');
+console.log('单个验证结果:', singleResult);
+
+// 验证并绑定
+try {
+  const bindingResult = await validator.verifyAndBind('BC123456789', 'p12345', 'd67890');
+  console.log('绑定结果:', bindingResult);
+} catch (error) {
+  console.error('绑定失败:', error.message);
+}
+
+// 批量验证
+const batchRequests = [
+  { bindingCode: 'BC123456789', pk: 'p12345', dk: 'd67890', isBinding: 0 },
+  { bindingCode: 'BC987654321', pk: 'p12345', dk: 'd67891', isBinding: 1 },
+  { bindingCode: 'BC555666777', pk: 'p54321', dk: 'd12345', isBinding: 0 }
+];
+
+const batchResults = await validator.batchVerify(batchRequests);
+console.log('批量验证结果:', batchResults);
+
+// 带重试的验证
+try {
+  const retryResult = await validator.verifyWithRetry('BC123456789', 'p12345', 'd67890', 3, 1);
+  console.log('重试验证结果:', retryResult);
+} catch (error) {
+  console.error('重试验证最终失败:', error.message);
+}
+
+// 绑定码格式验证
+function validateBindingCodeFormat(bindingCode) {
+  // 示例格式验证规则
+  const patterns = {
+    length: bindingCode.length >= 6 && bindingCode.length <= 32,
+    alphanumeric: /^[A-Za-z0-9]+$/.test(bindingCode),
+    notEmpty: bindingCode.trim().length > 0
+  };
+  
+  const isValid = Object.values(patterns).every(Boolean);
+  
+  return {
+    valid: isValid,
+    patterns,
+    errors: Object.entries(patterns)
+      .filter(([, valid]) => !valid)
+      .map(([pattern]) => `格式错误: ${pattern}`)
+  };
+}
+
+// 设备绑定流程
+async function deviceBindingFlow(token, bindingCode, pk, dk) {
+  const validator = new BindingCodeValidator(token);
+  
+  try {
+    // 1. 格式验证
+    const formatCheck = validateBindingCodeFormat(bindingCode);
+    if (!formatCheck.valid) {
+      throw new Error(`绑定码格式错误: ${formatCheck.errors.join(', ')}`);
+    }
+    
+    // 2. 服务端验证
+    console.log('开始验证绑定码...');
+    const verifyResult = await validator.verify(bindingCode, pk, dk, 0);
+    
+    if (verifyResult.code !== 200) {
+      throw new Error(`绑定码验证失败: ${verifyResult.msg}`);
+    }
+    
+    console.log('绑定码验证成功');
+    
+    // 3. 执行绑定
+    console.log('开始执行设备绑定...');
+    const bindResult = await validator.verify(bindingCode, pk, dk, 1);
+    
+    if (bindResult.code !== 200) {
+      throw new Error(`设备绑定失败: ${bindResult.msg}`);
+    }
+    
+    console.log('设备绑定成功');
+    
+    return {
+      success: true,
+      verifyResult,
+      bindResult
+    };
+  } catch (error) {
+    console.error('设备绑定流程失败:', error.message);
+    
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+}
+
+// 执行完整的设备绑定流程
+const bindingFlow = await deviceBindingFlow(token, 'BC123456789', 'p12345', 'd67890');
+console.log('绑定流程结果:', bindingFlow);
+```
+
+```python Python
+import requests
+import time
+import re
+from typing import List, Dict, Optional
+
+def verify_binding_code(token, binding_code, pk, dk, is_binding=0):
+    """
+    验证设备绑定码
+    
+    Args:
+        token: JWT认证token
+        binding_code: 绑定码
+        pk: Product Key
+        dk: Device Key
+        is_binding: 是否正在绑定设备，0-否，1-是
+    
+    Returns:
+        验证结果
+    """
+    url = "https://iot-api.quectelcn.com/v2/binding/enterpriseapi/verifyBindingCode"
+    
+    params = {
+        "bindingCode": binding_code,
+        "pk": pk,
+        "dk": dk,
+        "isBinding": is_binding
+    }
+    
+    headers = {
+        "Authorization": token,
+        "Content-Type": "application/json"
+    }
+    
+    response = requests.post(url, params=params, headers=headers)
+    response.raise_for_status()
+    
+    return response.json()
+
+def verify_code(token, binding_code, pk, dk):
+    """验证绑定码（不通知设备端）"""
+    try:
+        result = verify_binding_code(token, binding_code, pk, dk, 0)
+        
+        if result["code"] == 200:
+            print("绑定码验证成功")
+            return {"valid": True, "result": result}
+        else:
+            print(f"绑定码验证失败: {result.get('msg', '未知错误')}")
+            return {"valid": False, "result": result}
+    except Exception as e:
+        print(f"验证绑定码时发生错误: {e}")
+        return {"valid": False, "error": str(e)}
+
+def verify_code_with_notification(token, binding_code, pk, dk):
+    """验证绑定码并通知设备端"""
+    try:
+        result = verify_binding_code(token, binding_code, pk, dk, 1)
+        
+        if result["code"] == 200:
+            print("绑定码验证成功，设备端将收到绑定状态通知")
+            return {"valid": True, "result": result}
+        else:
+            print(f"绑定码验证失败: {result.get('msg', '未知错误')}")
+            return {"valid": False, "result": result}
+    except Exception as e:
+        print(f"验证绑定码时发生错误: {e}")
+        return {"valid": False, "error": str(e)}
+
+def batch_verify_binding_codes(token, binding_requests):
+    """
+    批量验证绑定码
+    
+    Args:
+        token: JWT认证token
+        binding_requests: 绑定请求列表
+    
+    Returns:
+        验证结果列表
+    """
+    results = []
+    
+    for request in binding_requests:
+        try:
+            result = verify_binding_code(
+                token,
+                request["bindingCode"],
+                request["pk"],
+                request["dk"],
+                request.get("isBinding", 0)
+            )
+            
+            results.append({
+                **request,
+                "success": True,
+                "valid": result["code"] == 200,
+                "result": result
+            })
+            
+            status = "成功" if result["code"] == 200 else "失败"
+            print(f"设备 {request['dk']} 绑定码验证{status}")
+            
+        except Exception as e:
+            results.append({
+                **request,
+                "success": False,
+                "valid": False,
+                "error": str(e)
+            })
+            
+            print(f"设备 {request['dk']} 绑定码验证出错: {e}")
+    
+    return results
+
+# 绑定码验证管理器
+class BindingCodeValidator:
+    def __init__(self, token):
+        self.token = token
+    
+    def verify(self, binding_code, pk, dk, is_binding=0):
+        """验证绑定码"""
+        return verify_binding_code(self.token, binding_code, pk, dk, is_binding)
+    
+    def verify_and_bind(self, binding_code, pk, dk):
+        """验证绑定码并绑定"""
+        # 先验证绑定码
+        verify_result = self.verify(binding_code, pk, dk, 0)
+        
+        if verify_result["code"] != 200:
+            raise Exception(f"绑定码验证失败: {verify_result.get('msg', '未知错误')}")
+        
+        # 验证成功后，通知设备端进行绑定
+        bind_result = self.verify(binding_code, pk, dk, 1)
+        
+        return {
+            "verify_result": verify_result,
+            "bind_result": bind_result,
+            "success": bind_result["code"] == 200
+        }
+    
+    def verify_with_retry(self, binding_code, pk, dk, max_retries=3, is_binding=0):
+        """带重试的绑定码验证"""
+        last_error = None
+        
+        for attempt in range(1, max_retries + 1):
+            try:
+                result = self.verify(binding_code, pk, dk, is_binding)
+                
+                if result["code"] == 200:
+                    return result
+                else:
+                    last_error = Exception(result.get("msg", "验证失败"))
+            except Exception as e:
+                last_error = e
+                
+                if attempt < max_retries:
+                    # 指数退避
+                    time.sleep(2 ** attempt)
+        
+        raise last_error
+    
+    def batch_verify(self, requests):
+        """批量验证"""
+        return batch_verify_binding_codes(self.token, requests)
+
+# 使用示例
+validator = BindingCodeValidator(token)
+
+# 单个绑定码验证
+single_result = validator.verify('BC123456789', 'p12345', 'd67890')
+print("单个验证结果:", single_result)
+
+# 验证并绑定
+try:
+    binding_result = validator.verify_and_bind('BC123456789', 'p12345', 'd67890')
+    print("绑定结果:", binding_result)
+except Exception as e:
+    print(f"绑定失败: {e}")
+
+# 批量验证
+batch_requests = [
+    {"bindingCode": "BC123456789", "pk": "p12345", "dk": "d67890", "isBinding": 0},
+    {"bindingCode": "BC987654321", "pk": "p12345", "dk": "d67891", "isBinding": 1},
+    {"bindingCode": "BC555666777", "pk": "p54321", "dk": "d12345", "isBinding": 0}
+]
+
+batch_results = validator.batch_verify(batch_requests)
+print("批量验证结果:", batch_results)
+
+# 带重试的验证
+try:
+    retry_result = validator.verify_with_retry('BC123456789', 'p12345', 'd67890', 3, 1)
+    print("重试验证结果:", retry_result)
+except Exception as e:
+    print(f"重试验证最终失败: {e}")
+
+# 绑定码格式验证
+def validate_binding_code_format(binding_code):
+    """验证绑定码格式"""
+    patterns = {
+        "length": 6 <= len(binding_code) <= 32,
+        "alphanumeric": re.match(r'^[A-Za-z0-9]+$', binding_code) is not None,
+        "not_empty": len(binding_code.strip()) > 0
+    }
+    
+    is_valid = all(patterns.values())
+    
+    errors = [f"格式错误: {pattern}" for pattern, valid in patterns.items() if not valid]
+    
+    return {
+        "valid": is_valid,
+        "patterns": patterns,
+        "errors": errors
+    }
+
+# 设备绑定流程
+def device_binding_flow(token, binding_code, pk, dk):
+    """设备绑定流程"""
+    validator = BindingCodeValidator(token)
+    
+    try:
+        # 1. 格式验证
+        format_check = validate_binding_code_format(binding_code)
+        if not format_check["valid"]:
+            raise Exception(f"绑定码格式错误: {', '.join(format_check['errors'])}")
+        
+        # 2. 服务端验证
+        print("开始验证绑定码...")
+        verify_result = validator.verify(binding_code, pk, dk, 0)
+        
+        if verify_result["code"] != 200:
+            raise Exception(f"绑定码验证失败: {verify_result.get('msg', '未知错误')}")
+        
+        print("绑定码验证成功")
+        
+        # 3. 执行绑定
+        print("开始执行设备绑定...")
+        bind_result = validator.verify(binding_code, pk, dk, 1)
+        
+        if bind_result["code"] != 200:
+            raise Exception(f"设备绑定失败: {bind_result.get('msg', '未知错误')}")
+        
+        print("设备绑定成功")
+        
+        return {
+            "success": True,
+            "verify_result": verify_result,
+            "bind_result": bind_result
+        }
+    except Exception as e:
+        print(f"设备绑定流程失败: {e}")
+        
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+# 执行完整的设备绑定流程
+binding_flow = device_binding_flow(token, 'BC123456789', 'p12345', 'd67890')
+print("绑定流程结果:", binding_flow)
+
+# 绑定码统计分析
+def analyze_binding_codes(token, binding_requests):
+    """分析绑定码验证结果"""
+    validator = BindingCodeValidator(token)
+    results = validator.batch_verify(binding_requests)
+    
+    analysis = {
+        "total": len(results),
+        "valid": 0,
+        "invalid": 0,
+        "errors": 0,
+        "success_rate": 0,
+        "error_details": {},
+        "product_stats": {},
+        "binding_type_stats": {"verify_only": 0, "with_binding": 0}
+    }
+    
+    for result in results:
+        if result["success"]:
+            if result["valid"]:
+                analysis["valid"] += 1
+            else:
+                analysis["invalid"] += 1
+        else:
+            analysis["errors"] += 1
+            error = result.get("error", "未知错误")
+            analysis["error_details"][error] = analysis["error_details"].get(error, 0) + 1
+        
+        # 产品统计
+        pk = result["pk"]
+        if pk not in analysis["product_stats"]:
+            analysis["product_stats"][pk] = {"total": 0, "valid": 0}
+        analysis["product_stats"][pk]["total"] += 1
+        if result.get("valid"):
+            analysis["product_stats"][pk]["valid"] += 1
+        
+        # 绑定类型统计
+        if result.get("isBinding") == 1:
+            analysis["binding_type_stats"]["with_binding"] += 1
+        else:
+            analysis["binding_type_stats"]["verify_only"] += 1
+    
+    if analysis["total"] > 0:
+        analysis["success_rate"] = (analysis["valid"] / analysis["total"]) * 100
+    
+    return analysis
+
+# 分析示例
+analysis_requests = [
+    {"bindingCode": "BC123456789", "pk": "p12345", "dk": "d67890", "isBinding": 0},
+    {"bindingCode": "BC987654321", "pk": "p12345", "dk": "d67891", "isBinding": 1},
+    {"bindingCode": "INVALID", "pk": "p54321", "dk": "d12345", "isBinding": 0}
+]
+
+binding_analysis = analyze_binding_codes(token, analysis_requests)
+print("绑定码分析结果:", binding_analysis)
+
+# 定期验证任务
+def periodic_binding_verification(token, binding_requests, interval=300):
+    """定期验证绑定码"""
+    validator = BindingCodeValidator(token)
+    
+    print(f"开始定期验证任务，间隔 {interval} 秒...")
+    
+    while True:
+        try:
+            print(f"执行验证任务，验证 {len(binding_requests)} 个绑定码...")
+            results = validator.batch_verify(binding_requests)
+            
+            valid_count = sum(1 for r in results if r.get("valid", False))
+            print(f"验证完成，有效绑定码: {valid_count}/{len(results)}")
+            
+            time.sleep(interval)
+        except KeyboardInterrupt:
+            print("定期验证任务已停止")
+            break
+        except Exception as e:
+            print(f"定期验证任务出错: {e}")
+            time.sleep(interval)
+```
+
+```curl cURL
+# 验证绑定码（不通知设备端）
+curl -X POST "https://iot-api.quectelcn.com/v2/binding/enterpriseapi/verifyBindingCode?bindingCode=BC123456789&pk=p12345&dk=d67890&isBinding=0" \
+  -H "Authorization: YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json"
+
+# 验证绑定码并通知设备端
+curl -X POST "https://iot-api.quectelcn.com/v2/binding/enterpriseapi/verifyBindingCode?bindingCode=BC123456789&pk=p12345&dk=d67890&isBinding=1" \
+  -H "Authorization: YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json"
+
+# 验证不同产品的绑定码
+curl -X POST "https://iot-api.quectelcn.com/v2/binding/enterpriseapi/verifyBindingCode?bindingCode=BC987654321&pk=p54321&dk=d12345&isBinding=0" \
+  -H "Authorization: YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json"
+
+# 执行设备绑定操作
+curl -X POST "https://iot-api.quectelcn.com/v2/binding/enterpriseapi/verifyBindingCode?bindingCode=BC555666777&pk=p99999&dk=d88888&isBinding=1" \
+  -H "Authorization: YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json"
+```
+
+</CodeGroup>
+
+## 响应示例
+
+### 成功响应
+
+```json
+{
+  "code": 200,
+  "msg": "验证成功",
+  "data": 1,
+  "extMsg": "绑定码有效"
+}
+```
+
+### 验证失败响应
+
+```json
+{
+  "code": 5462,
+  "msg": "bindingCode验证失败",
+  "data": 0,
+  "extMsg": "绑定码已过期或无效"
+}
+```
+
+### 未上报绑定码响应
+
+```json
+{
+  "code": 5460,
+  "msg": "未上报bindingCode",
+  "data": 0,
+  "extMsg": "设备尚未生成绑定码"
+}
+```
+
+## 响应数据说明
+
+### 成功验证
+
+| 字段 | 说明 | 示例 |
+|------|------|------|
+| code | 响应状态码 | 200 |
+| msg | 响应消息 | "验证成功" |
+| data | 验证结果 | 1-成功, 0-失败 |
+| extMsg | 扩展消息 | "绑定码有效" |
+
+### 验证状态
+
+<Tabs>
+  <Tab title="验证成功">
+    ```json
+    {
+      "code": 200,
+      "data": 1,
+      "msg": "验证成功"
+    }
+    ```
+    绑定码验证通过，可以进行绑定操作
+  </Tab>
+  
+  <Tab title="验证失败">
+    ```json
+    {
+      "code": 5462,
+      "data": 0,
+      "msg": "bindingCode验证失败"
+    }
+    ```
+    绑定码无效，可能已过期或格式错误
+  </Tab>
+</Tabs>
+
+## 绑定码生命周期
+
+```javascript
+// 绑定码状态管理
+class BindingCodeLifecycle {
+  constructor(token) {
+    this.token = token;
+    this.validator = new BindingCodeValidator(token);
+  }
+  
+  // 检查绑定码状态
+  async checkBindingCodeStatus(bindingCode, pk, dk) {
+    try {
+      const result = await this.validator.verify(bindingCode, pk, dk, 0);
+      
+      const status = {
+        valid: result.code === 200,
+        code: result.code,
+        message: result.msg,
+        canBind: result.code === 200
+      };
+      
+      // 根据错误码判断具体状态
+      switch (result.code) {
+        case 200:
+          status.status = 'valid';
+          status.description = '绑定码有效，可以绑定';
+          break;
+        case 5460:
+          status.status = 'not_reported';
+          status.description = '设备尚未上报绑定码';
+          break;
+        case 5462:
+          status.status = 'invalid';
+          status.description = '绑定码验证失败';
+          break;
+        case 5213:
+          status.status = 'format_error';
+          status.description = '绑定码格式不正确';
+          break;
+        default:
+          status.status = 'unknown';
+          status.description = '未知状态';
+      }
+      
+      return status;
+    } catch (error) {
+      return {
+        valid: false,
+        status: 'error',
+        description: '验证过程中发生错误',
+        error: error.message
+      };
+    }
+  }
+  
+  // 完整的绑定流程
+  async performBinding(bindingCode, pk, dk, options = {}) {
+    const { 
+      preCheck = true, 
+      retryCount = 3, 
+      notifyDevice = true 
+    } = options;
+    
+    const bindingLog = {
+      bindingCode,
+      pk,
+      dk,
+      startTime: new Date().toISOString(),
+      steps: [],
+      success: false
+    };
+    
+    try {
+      // 步骤1: 预检查（可选）
+      if (preCheck) {
+        bindingLog.steps.push({
+          step: 'pre_check',
+          timestamp: new Date().toISOString(),
+          status: 'started'
+        });
+        
+        const formatCheck = this.validateFormat(bindingCode);
+        if (!formatCheck.valid) {
+          throw new Error(`格式检查失败: ${formatCheck.errors.join(', ')}`);
+        }
+        
+        bindingLog.steps[bindingLog.steps.length - 1].status = 'completed';
+      }
+      
+      // 步骤2: 验证绑定码
+      bindingLog.steps.push({
+        step: 'verify_code',
+        timestamp: new Date().toISOString(),
+        status: 'started'
+      });
+      
+      const verifyResult = await this.validator.verifyWithRetry(
+        bindingCode, pk, dk, retryCount, 0
+      );
+      
+      if (verifyResult.code !== 200) {
+        throw new Error(`绑定码验证失败: ${verifyResult.msg}`);
+      }
+      
+      bindingLog.steps[bindingLog.steps.length - 1].status = 'completed';
+      bindingLog.steps[bindingLog.steps.length - 1].result = verifyResult;
+      
+      // 步骤3: 执行绑定（可选）
+      if (notifyDevice) {
+        bindingLog.steps.push({
+          step: 'bind_device',
+          timestamp: new Date().toISOString(),
+          status: 'started'
+        });
+        
+        const bindResult = await this.validator.verify(bindingCode, pk, dk, 1);
+        
+        if (bindResult.code !== 200) {
+          throw new Error(`设备绑定失败: ${bindResult.msg}`);
+        }
+        
+        bindingLog.steps[bindingLog.steps.length - 1].status = 'completed';
+        bindingLog.steps[bindingLog.steps.length - 1].result = bindResult;
+      }
+      
+      bindingLog.success = true;
+      bindingLog.endTime = new Date().toISOString();
+      
+      return bindingLog;
+    } catch (error) {
+      bindingLog.success = false;
+      bindingLog.error = error.message;
+      bindingLog.endTime = new Date().toISOString();
+      
+      // 标记当前步骤为失败
+      if (bindingLog.steps.length > 0) {
+        const lastStep = bindingLog.steps[bindingLog.steps.length - 1];
+        if (lastStep.status === 'started') {
+          lastStep.status = 'failed';
+          lastStep.error = error.message;
+        }
+      }
+      
+      throw error;
+    }
+  }
+  
+  // 格式验证
+  validateFormat(bindingCode) {
+    const checks = {
+      notEmpty: bindingCode && bindingCode.trim().length > 0,
+      length: bindingCode && bindingCode.length >= 6 && bindingCode.length <= 32,
+      alphanumeric: bindingCode && /^[A-Za-z0-9]+$/.test(bindingCode)
+    };
+    
+    const errors = [];
+    if (!checks.notEmpty) errors.push('绑定码不能为空');
+    if (!checks.length) errors.push('绑定码长度必须在6-32位之间');
+    if (!checks.alphanumeric) errors.push('绑定码只能包含字母和数字');
+    
+    return {
+      valid: Object.values(checks).every(Boolean),
+      checks,
+      errors
+    };
+  }
+  
+  // 批量绑定处理
+  async batchBinding(bindingRequests, options = {}) {
+    const { concurrency = 5, continueOnError = true } = options;
+    
+    const results = [];
+    const chunks = this.chunkArray(bindingRequests, concurrency);
+    
+    for (const chunk of chunks) {
+      const promises = chunk.map(async (request) => {
+        try {
+          const result = await this.performBinding(
+            request.bindingCode,
+            request.pk,
+            request.dk,
+            request.options || {}
+          );
+          
+          return { ...request, success: true, result };
+        } catch (error) {
+          const errorResult = { ...request, success: false, error: error.message };
+          
+          if (!continueOnError) {
+            throw error;
+          }
+          
+          return errorResult;
+        }
+      });
+      
+      const chunkResults = await Promise.allSettled(promises);
+      
+      chunkResults.forEach(result => {
+        if (result.status === 'fulfilled') {
+          results.push(result.value);
+        } else {
+          results.push({
+            success: false,
+            error: result.reason.message || 'Unknown error'
+          });
+        }
+      });
+    }
+    
+    return {
+      total: bindingRequests.length,
+      success: results.filter(r => r.success).length,
+      failed: results.filter(r => !r.success).length,
+      results
+    };
+  }
+  
+  chunkArray(array, chunkSize) {
+    const chunks = [];
+    for (let i = 0; i < array.length; i += chunkSize) {
+      chunks.push(array.slice(i, i + chunkSize));
+    }
+    return chunks;
+  }
+}
+
+// 使用示例
+const lifecycle = new BindingCodeLifecycle(token);
+
+// 检查绑定码状态
+const status = await lifecycle.checkBindingCodeStatus('BC123456789', 'p12345', 'd67890');
+console.log('绑定码状态:', status);
+
+// 执行完整绑定流程
+try {
+  const bindingResult = await lifecycle.performBinding('BC123456789', 'p12345', 'd67890', {
+    preCheck: true,
+    retryCount: 3,
+    notifyDevice: true
+  });
+  console.log('绑定成功:', bindingResult);
+} catch (error) {
+  console.error('绑定失败:', error.message);
+}
+
+// 批量绑定
+const batchBindingRequests = [
+  { bindingCode: 'BC123456789', pk: 'p12345', dk: 'd67890' },
+  { bindingCode: 'BC987654321', pk: 'p12345', dk: 'd67891' }
+];
+
+const batchResult = await lifecycle.batchBinding(batchBindingRequests, {
+  concurrency: 3,
+  continueOnError: true
+});
+console.log('批量绑定结果:', batchResult);
+```
+
+## 错误处理
+
+| 错误码 | 描述 | 解决方案 |
+|--------|------|----------|
+| 5066 | 请输入Product Key | 提供有效的pk参数 |
+| 5067 | 请输入Device Key | 提供有效的dk参数 |
+| 5144 | 鉴权失败 | 检查认证信息和权限 |
+| 5179 | 请输入bindingCode | 提供有效的绑定码 |
+| 5213 | bindingCode格式不正确 | 检查绑定码格式是否符合规范 |
+| 5460 | 未上报bindingCode | 设备尚未生成或上报绑定码 |
+| 5462 | bindingCode验证失败 | 绑定码无效或已过期 |
+
+## 最佳实践
+
+<Warning>
+**安全注意事项**:
+- 绑定码具有时效性，建议及时验证和使用
+- 绑定码验证失败时，不要频繁重试，避免被系统限制
+- 在生产环境中，建议实现绑定码的本地缓存机制
+</Warning>
+
+<Note>
+**使用建议**:
+- 设备绑定前建议先进行格式验证
+- 批量绑定时控制并发数量，避免对系统造成压力
+- 记录绑定操作日志，便于问题排查
+- 考虑实现绑定码的生命周期管理
+</Note>
+
+## 使用场景
+
+<CardGroup cols={2}>
+  <Card title="设备绑定" icon="link">
+    验证绑定码并完成设备绑定操作
+  </Card>
+  <Card title="绑定验证" icon="shield-check">
+    在绑定前验证绑定码的有效性
+  </Card>
+  <Card title="批量绑定" icon="layers">
+    批量验证和绑定多个设备
+  </Card>
+  <Card title="状态监控" icon="chart-line">
+    监控绑定码的状态和生命周期
+  </Card>
+</CardGroup>
+
+## 相关接口
+
+<CardGroup cols={2}>
+  <Card title="用户设备列表" href="/api-reference/endpoint/enduser-device-list">
+    查询用户绑定的设备列表
+  </Card>
+  <Card title="设备详情查询" href="/api-reference/endpoint/device-detail">
+    获取设备详细信息
+  </Card>
+  <Card title="绑定用户查询" href="/api-reference/endpoint/enduser-get-user-by-device">
+    查询绑定设备的用户
+  </Card>
+  <Card title="用户信息查询" href="/api-reference/endpoint/enduser-user-info">
+    获取用户详细信息
+  </Card>
+</CardGroup>

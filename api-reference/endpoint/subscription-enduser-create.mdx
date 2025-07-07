@@ -1,0 +1,374 @@
+---
+title: '创建终端用户订阅'
+openapi: 'POST /v2/quecrule/r1/openapi/subscribe/enduser'
+---
+
+## 终端用户订阅管理
+
+创建终端用户域级消息订阅，用于接收终端用户新增、删除、修改等事件通知。终端用户订阅是SaaS应用管理终端用户状态变更的重要机制。
+
+## 订阅类型
+
+<CardGroup cols={2}>
+  <Card title="终端用户域订阅" icon="users">
+    订阅指定终端用户域的用户事件变更
+  </Card>
+  <Card title="实时通知" icon="bell">
+    实时接收用户状态变更通知
+  </Card>
+</CardGroup>
+
+## 事件类型
+
+<AccordionGroup>
+  <Accordion title="终端用户事件">
+    - **201**: 终端用户新增/删除/修改事件
+    - 涵盖用户账号创建、信息更新、账号删除等操作
+  </Accordion>
+</AccordionGroup>
+
+## 代码示例
+
+<CodeGroup>
+
+```javascript JavaScript
+async function createEndUserSubscription(token, subscriptionConfig) {
+  const response = await fetch(
+    'https://iot-api.quectelcn.com/v2/quecrule/r1/openapi/subscribe/enduser',
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': token,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(subscriptionConfig)
+    }
+  );
+  
+  return await response.json();
+}
+
+// 创建终端用户订阅
+const endUserSubscription = {
+  endUserDomain: "C.DM.26106.1",
+  msgTypes: [201],
+  queueName: "a.000000026106.testAbc",
+  subscribeName: "终端用户事件订阅"
+};
+
+const result = await createEndUserSubscription(token, endUserSubscription);
+console.log(`终端用户订阅创建成功，订阅ID: ${result.data.subscribeId}`);
+
+// 批量创建多个终端用户域订阅
+const multiDomainSubscriptions = [
+  {
+    endUserDomain: "C.DM.26106.1",
+    msgTypes: [201],
+    queueName: "user-events-domain-1",
+    subscribeName: "域1用户事件订阅"
+  },
+  {
+    endUserDomain: "C.DM.26106.2",
+    msgTypes: [201],
+    queueName: "user-events-domain-2",
+    subscribeName: "域2用户事件订阅"
+  }
+];
+
+async function createMultiDomainSubscriptions(token, subscriptions) {
+  const results = [];
+  
+  for (const subscription of subscriptions) {
+    try {
+      const result = await createEndUserSubscription(token, subscription);
+      results.push({
+        domain: subscription.endUserDomain,
+        success: true,
+        subscribeId: result.data.subscribeId,
+        subscribeName: subscription.subscribeName
+      });
+    } catch (error) {
+      results.push({
+        domain: subscription.endUserDomain,
+        success: false,
+        error: error.message
+      });
+    }
+  }
+  
+  return results;
+}
+
+const batchResults = await createMultiDomainSubscriptions(token, multiDomainSubscriptions);
+batchResults.forEach(result => {
+  if (result.success) {
+    console.log(`✓ 域 ${result.domain} 订阅创建成功`);
+  } else {
+    console.log(`✗ 域 ${result.domain} 订阅创建失败: ${result.error}`);
+  }
+});
+
+// 终端用户订阅管理器
+class EndUserSubscriptionManager {
+  constructor(token) {
+    this.token = token;
+    this.baseUrl = 'https://iot-api.quectelcn.com/v2/quecrule/r1/openapi';
+  }
+  
+  async createDomainSubscription(endUserDomain, queueName, subscribeName) {
+    const config = {
+      endUserDomain,
+      msgTypes: [201],
+      queueName,
+      subscribeName
+    };
+    
+    return await createEndUserSubscription(this.token, config);
+  }
+  
+  async createStandardSubscriptions(environment, domains) {
+    const subscriptions = domains.map(domain => ({
+      endUserDomain: domain,
+      msgTypes: [201],
+      queueName: `${environment}-user-events-${domain.replace(/\./g, '-')}`,
+      subscribeName: `${environment}环境-${domain}-用户事件订阅`
+    }));
+    
+    return await createMultiDomainSubscriptions(this.token, subscriptions);
+  }
+}
+
+// 使用订阅管理器
+const manager = new EndUserSubscriptionManager(token);
+const domains = ["C.DM.26106.1", "C.DM.26106.2"];
+const prodResults = await manager.createStandardSubscriptions("production", domains);
+```
+
+```python Python
+import requests
+
+def create_enduser_subscription(token, subscription_config):
+    """创建终端用户订阅"""
+    url = "https://iot-api.quectelcn.com/v2/quecrule/r1/openapi/subscribe/enduser"
+    
+    headers = {
+        "Authorization": token,
+        "Content-Type": "application/json"
+    }
+    
+    response = requests.post(url, json=subscription_config, headers=headers)
+    response.raise_for_status()
+    
+    return response.json()
+
+# 创建终端用户订阅
+enduser_subscription = {
+    "endUserDomain": "C.DM.26106.1",
+    "msgTypes": [201],
+    "queueName": "a.000000026106.testAbc",
+    "subscribeName": "终端用户事件订阅"
+}
+
+result = create_enduser_subscription(token, enduser_subscription)
+print(f"终端用户订阅创建成功，订阅ID: {result['data']['subscribeId']}")
+
+# 终端用户订阅管理器
+class EndUserSubscriptionManager:
+    def __init__(self, token):
+        self.token = token
+        self.base_url = "https://iot-api.quectelcn.com/v2/quecrule/r1/openapi"
+    
+    def create_domain_subscription(self, end_user_domain, queue_name, subscribe_name):
+        """创建指定域的终端用户订阅"""
+        config = {
+            "endUserDomain": end_user_domain,
+            "msgTypes": [201],
+            "queueName": queue_name,
+            "subscribeName": subscribe_name
+        }
+        return create_enduser_subscription(self.token, config)
+    
+    def create_multi_domain_subscriptions(self, domains, environment="production"):
+        """为多个域创建终端用户订阅"""
+        results = []
+        
+        for domain in domains:
+            try:
+                queue_name = f"{environment}-user-events-{domain.replace('.', '-')}"
+                subscribe_name = f"{environment}环境-{domain}-用户事件订阅"
+                
+                result = self.create_domain_subscription(domain, queue_name, subscribe_name)
+                results.append({
+                    "domain": domain,
+                    "success": True,
+                    "subscribeId": result["data"]["subscribeId"]
+                })
+            except Exception as e:
+                results.append({
+                    "domain": domain,
+                    "success": False,
+                    "error": str(e)
+                })
+        
+        return results
+    
+    def create_standard_subscriptions(self, environment, domains):
+        """创建标准终端用户订阅集合"""
+        return self.create_multi_domain_subscriptions(domains, environment)
+
+# 使用订阅管理器
+manager = EndUserSubscriptionManager(token)
+domains = ["C.DM.26106.1", "C.DM.26106.2", "C.DM.26106.3"]
+results = manager.create_standard_subscriptions("production", domains)
+
+for result in results:
+    if result["success"]:
+        print(f"✓ 域 {result['domain']} 订阅创建成功")
+    else:
+        print(f"✗ 域 {result['domain']} 订阅创建失败: {result['error']}")
+```
+
+```curl cURL
+# 创建终端用户订阅
+curl -X POST "https://iot-api.quectelcn.com/v2/quecrule/r1/openapi/subscribe/enduser" \
+  -H "Authorization: YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "endUserDomain": "C.DM.26106.1",
+    "msgTypes": [201],
+    "queueName": "a.000000026106.testAbc",
+    "subscribeName": "终端用户事件订阅"
+  }'
+
+# 创建多个终端用户域订阅
+curl -X POST "https://iot-api.quectelcn.com/v2/quecrule/r1/openapi/subscribe/enduser" \
+  -H "Authorization: YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "endUserDomain": "C.DM.26106.2",
+    "msgTypes": [201],
+    "queueName": "user-events-domain-2",
+    "subscribeName": "域2用户事件订阅"
+  }'
+```
+
+</CodeGroup>
+
+## 响应示例
+
+### 成功创建响应
+
+```json
+{
+  "code": 200,
+  "data": {
+    "subscribeId": 1
+  },
+  "msg": ""
+}
+```
+
+### 错误响应示例
+
+```json
+{
+  "code": 16002,
+  "msg": "The queue name does not exist",
+  "data": null
+}
+```
+
+## 消息格式
+
+终端用户事件消息遵循以下JSON格式：
+
+```json
+{
+  "messageId": "msg_enduser_1234567890",
+  "timestamp": "2023-12-15T14:30:25.123Z",
+  "eventType": "ENDUSER_CHANGE",
+  "msgType": 201,
+  "endUserDomain": "C.DM.26106.1",
+  "data": {
+    "userId": "user_123456",
+    "userName": "张三",
+    "operation": "CREATE",
+    "userInfo": {
+      "email": "zhangsan@example.com",
+      "phone": "13800138000",
+      "status": "ACTIVE"
+    }
+  },
+  "metadata": {
+    "source": "user_management",
+    "timestamp": "2023-12-15T14:30:25Z"
+  }
+}
+```
+
+## 订阅参数说明
+
+<AccordionGroup>
+  <Accordion title="endUserDomain">
+    终端用户域标识，用于指定订阅的用户域范围
+  </Accordion>
+  
+  <Accordion title="msgTypes">
+    消息类型数组，201表示终端用户新增/删除/修改事件
+  </Accordion>
+  
+  <Accordion title="queueName">
+    消息队列名称，用于接收订阅消息
+  </Accordion>
+  
+  <Accordion title="subscribeName">
+    订阅名称，支持中文、英文、数字、下划线和中划线，最大128字符
+  </Accordion>
+</AccordionGroup>
+
+## 最佳实践
+
+<CardGroup cols={2}>
+  <Card title="域名规范" icon="tags">
+    使用有意义的域名命名，便于管理和识别
+  </Card>
+  <Card title="队列命名" icon="queue">
+    队列名称应包含环境和用途信息，如"prod-user-events"
+  </Card>
+  <Card title="权限控制" icon="shield-alt">
+    确保只有授权的应用才能创建和管理终端用户订阅
+  </Card>
+  <Card title="监控告警" icon="bell">
+    监控订阅状态和消息处理情况，及时发现问题
+  </Card>
+</CardGroup>
+
+## 错误处理
+
+| 错误码 | 描述 | 解决方案 |
+|--------|------|----------|
+| 16002 | 队列名称不存在 | 检查队列名称是否正确，确保队列已创建 |
+| 16018 | 订阅规则数量超出限制 | 删除不必要的订阅或联系管理员增加限制 |
+| 16024 | 消息订阅功能未启用 | 前往SaaS开发指南申请启用消息订阅功能 |
+| 50004 | 参数为空 | 检查必填参数是否完整 |
+| 50005 | 参数校验错误 | 验证参数格式和取值范围 |
+| 70060 | 权限不足 | 检查应用是否有创建订阅的权限 |
+| 91004 | Token错误 | 检查Token有效性和格式 |
+| 91005 | 无权限 | 联系管理员分配相应权限 |
+
+## 相关接口
+
+<CardGroup cols={2}>
+  <Card title="查询订阅详情" href="/api-reference/endpoint/subscription-detail">
+    查看订阅的详细信息
+  </Card>
+  <Card title="修改订阅" href="/api-reference/endpoint/subscription-update">
+    更新订阅配置
+  </Card>
+  <Card title="删除订阅" href="/api-reference/endpoint/subscription-delete">
+    删除不需要的订阅
+  </Card>
+  <Card title="创建消息队列" href="/api-reference/endpoint/queue-create">
+    创建消息队列
+  </Card>
+</CardGroup>

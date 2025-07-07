@@ -40,14 +40,20 @@ openapi: 'POST /v2/deviceshadow/r3/openapi/dm/readData'
 | 参数名 | 类型 | 必填 | 说明 |
 |--------|------|------|------|
 | productKey | String | 是 | 产品PK |
-| deviceKey | String | 是 | 设备DK |
-| identifiers | Array | 是 | 属性标识符列表 |
+| deviceKey | String | 否 | 设备DK（单设备模式，与devices二选一） |
+| devices | Array | 是 | 设备DK列表（批量模式，与deviceKey二选一） |
+| data | String | 是 | 属性标识符列表（JSON字符串格式） |
+| qos | Integer | 否 | QoS等级设置（默认为1） |
+| isCache | Boolean | 否 | 是否启用缓存（默认为false） |
+| cacheTime | Integer | 否 | 缓存时间，单位秒（isCache为true时生效，默认600） |
+| isCover | Boolean | 否 | 是否覆盖前面发送的数据（默认为false） |
 
 ## 代码示例
 
 <CodeGroup>
 
 ```javascript JavaScript
+// 单设备读取函数
 async function readDeviceData(token, productKey, deviceKey, identifiers) {
   const response = await fetch(
     'https://iot-api.quectelcn.com/v2/deviceshadow/r3/openapi/dm/readData',
@@ -60,7 +66,7 @@ async function readDeviceData(token, productKey, deviceKey, identifiers) {
       body: JSON.stringify({
         productKey,
         deviceKey,
-        identifiers
+        data: JSON.stringify(identifiers)
       })
     }
   );
@@ -68,7 +74,32 @@ async function readDeviceData(token, productKey, deviceKey, identifiers) {
   return await response.json();
 }
 
-// 读取基本传感器数据
+// 批量设备读取函数
+async function readMultiDeviceData(token, productKey, devices, identifiers, options = {}) {
+  const response = await fetch(
+    'https://iot-api.quectelcn.com/v2/deviceshadow/r3/openapi/dm/readData',
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': token,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        productKey,
+        devices,
+        data: JSON.stringify(identifiers),
+        qos: options.qos || 1,
+        isCache: options.isCache || false,
+        cacheTime: options.cacheTime || 600,
+        isCover: options.isCover || false
+      })
+    }
+  );
+  
+  return await response.json();
+}
+
+// 读取单设备基本传感器数据
 const sensorData = await readDeviceData(
   token, 
   'p12345', 
@@ -77,6 +108,21 @@ const sensorData = await readDeviceData(
 );
 
 console.log('设备当前数据:', sensorData.data);
+
+// 批量设备数据读取（带缓存）
+const multiDeviceData = await readMultiDeviceData(
+  token,
+  'p12345',
+  ['d67890', 'd67891', 'd67892'],
+  ['temperature', 'humidity', 'switch'],
+  {
+    isCache: true,
+    cacheTime: 300,
+    qos: 1
+  }
+);
+
+console.log('批量设备数据:', multiDeviceData.data);
 
 // 读取设备状态信息
 const statusData = await readDeviceData(
@@ -129,10 +175,12 @@ const multiDeviceData = await readMultipleDeviceData(
 
 ```python Python
 import requests
+import json
 
+# 单设备读取函数
 def read_device_data(token, product_key, device_key, identifiers):
     """
-    读取设备物模型数据
+    读取单个设备的物模型数据
     
     Args:
         token: JWT认证token
@@ -148,7 +196,7 @@ def read_device_data(token, product_key, device_key, identifiers):
     payload = {
         "productKey": product_key,
         "deviceKey": device_key,
-        "identifiers": identifiers
+        "data": json.dumps(identifiers)
     }
     
     headers = {
@@ -161,7 +209,44 @@ def read_device_data(token, product_key, device_key, identifiers):
     
     return response.json()
 
-# 读取环境传感器数据
+# 批量设备读取函数
+def read_multi_device_data(token, product_key, devices, identifiers, **options):
+    """
+    批量读取多个设备的物模型数据
+    
+    Args:
+        token: JWT认证token
+        product_key: 产品PK
+        devices: 设备DK列表
+        identifiers: 属性标识符列表
+        **options: 可选参数 (qos, isCache, cacheTime, isCover)
+    
+    Returns:
+        批量设备数据读取结果
+    """
+    url = "https://iot-api.quectelcn.com/v2/deviceshadow/r3/openapi/dm/readData"
+    
+    payload = {
+        "productKey": product_key,
+        "devices": devices,
+        "data": json.dumps(identifiers),
+        "qos": options.get("qos", 1),
+        "isCache": options.get("isCache", False),
+        "cacheTime": options.get("cacheTime", 600),
+        "isCover": options.get("isCover", False)
+    }
+    
+    headers = {
+        "Authorization": token,
+        "Content-Type": "application/json"
+    }
+    
+    response = requests.post(url, json=payload, headers=headers)
+    response.raise_for_status()
+    
+    return response.json()
+
+# 单设备环境传感器数据读取
 sensor_data = read_device_data(
     token, 
     "p12345", 
@@ -170,6 +255,19 @@ sensor_data = read_device_data(
 )
 
 print("设备当前数据:", sensor_data["data"])
+
+# 批量设备数据读取（带缓存）
+multi_device_data = read_multi_device_data(
+    token,
+    "p12345",
+    ["d67890", "d67891", "d67892"],
+    ["temperature", "humidity", "switch"],
+    isCache=True,
+    cacheTime=300,
+    qos=1
+)
+
+print("批量设备数据:", multi_device_data["data"])
 
 # 读取设备运行状态
 status_data = read_device_data(
@@ -259,24 +357,51 @@ multi_device_data = read_multiple_devices(
 ```
 
 ```curl cURL
-# 读取温湿度数据
+# 单设备温湿度数据读取
 curl -X POST "https://iot-api.quectelcn.com/v2/deviceshadow/r3/openapi/dm/readData" \
   -H "Authorization: YOUR_JWT_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "productKey": "p12345",
     "deviceKey": "d67890",
-    "identifiers": ["temperature", "humidity", "pressure"]
+    "data": "[\"temperature\", \"humidity\", \"pressure\"]"
   }'
 
-# 读取设备状态
+# 批量设备数据读取（带缓存）
+curl -X POST "https://iot-api.quectelcn.com/v2/deviceshadow/r3/openapi/dm/readData" \
+  -H "Authorization: YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "productKey": "p12345",
+    "devices": ["d67890", "d67891", "d67892"],
+    "data": "[\"temperature\", \"humidity\", \"switch\"]",
+    "qos": 1,
+    "isCache": true,
+    "cacheTime": 300,
+    "isCover": false
+  }'
+
+# 单设备状态数据读取
 curl -X POST "https://iot-api.quectelcn.com/v2/deviceshadow/r3/openapi/dm/readData" \
   -H "Authorization: YOUR_JWT_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "productKey": "p12345",
     "deviceKey": "d67890",
-    "identifiers": ["switch", "battery_level", "signal_strength"]
+    "data": "[\"switch\", \"battery_level\", \"signal_strength\"]"
+  }'
+
+# 离线设备缓存读取
+curl -X POST "https://iot-api.quectelcn.com/v2/deviceshadow/r3/openapi/dm/readData" \
+  -H "Authorization: YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "productKey": "p12345",
+    "devices": ["d67893"],
+    "data": "[\"temperature\", \"humidity\", \"battery_level\"]",
+    "qos": 1,
+    "isCache": true,
+    "cacheTime": 600
   }'
 ```
 
@@ -340,6 +465,61 @@ curl -X POST "https://iot-api.quectelcn.com/v2/deviceshadow/r3/openapi/dm/readDa
   }
 }
 ```
+
+## 数据格式详解
+
+### 请求数据格式
+
+<Tabs>
+  <Tab title="单设备模式">
+    ```json
+    {
+      "productKey": "p12345",
+      "deviceKey": "d67890",
+      "data": "[\"temperature\", \"humidity\", \"pressure\"]"
+    }
+    ```
+    单个设备的数据读取格式
+  </Tab>
+  
+  <Tab title="批量设备模式">
+    ```json
+    {
+      "productKey": "p12345",
+      "devices": ["d67890", "d67891", "d67892"],
+      "data": "[\"temperature\", \"humidity\", \"switch\"]",
+      "qos": 1,
+      "isCache": true,
+      "cacheTime": 300
+    }
+    ```
+    多个设备的批量数据读取格式
+  </Tab>
+  
+  <Tab title="缓存模式">
+    ```json
+    {
+      "productKey": "p12345",
+      "devices": ["d67893"],
+      "data": "[\"temperature\", \"battery_level\"]",
+      "isCache": true,
+      "cacheTime": 600,
+      "isCover": false
+    }
+    ```
+    离线设备的缓存读取格式
+  </Tab>
+</Tabs>
+
+### 参数说明
+
+| 参数 | 默认值 | 说明 | 使用场景 |
+|------|--------|------|----------|
+| data | - | 属性标识符列表（JSON字符串） | 指定要读取的属性 |
+| devices | - | 设备DK列表 | 批量读取多个设备 |
+| isCache | false | 是否缓存读取请求 | 设备可能离线的情况 |
+| cacheTime | 600秒 | 缓存有效时间 | 根据数据更新频率设置 |
+| isCover | false | 是否覆盖旧请求 | 避免请求堆积 |
 
 ## 数据质量标识
 
@@ -496,6 +676,8 @@ curl -X POST "https://iot-api.quectelcn.com/v2/deviceshadow/r3/openapi/dm/readDa
 | 70018 | 设备不存在 | 验证设备已注册 |
 | 70089 | 权限受限 | 检查SaaS应用设备授权 |
 | 60011 | 设备影子数据不存在 | 设备可能从未上报数据 |
+| 61002 | 设备离线 | 启用缓存机制或等待设备上线 |
+| 61006 | 设备消息上限 | 控制读取频率或联系技术支持 |
 
 ## 数据时效性检查
 

@@ -1,0 +1,395 @@
+---
+title: '查询用户信息'
+openapi: 'GET /v2/enduser/enterpriseapi/userInfo'
+---
+
+## 查询用户信息
+
+获取指定用户的详细信息，包括基本资料、联系方式、登录状态和第三方账号绑定信息。
+
+## 用户状态
+
+<CardGroup cols={2}>
+  <Card title="正常状态" icon="check-circle">
+    账号状态为1，用户可正常使用所有功能
+  </Card>
+  <Card title="禁用状态" icon="ban">
+    账号状态为0，用户被禁用无法登录
+  </Card>
+</CardGroup>
+
+## 第三方账号支持
+
+<Info>
+支持多种第三方账号绑定，包括微信、QQ、支付宝、Apple、Facebook、Twitter等主流平台。
+</Info>
+
+## 接口地址
+
+`GET /v2/enduser/enterpriseapi/userInfo`
+
+## 请求参数
+
+| 参数名 | 类型 | 必填 | 说明 |
+|--------|------|------|------|
+| uid | String | 是 | 用户ID |
+
+## 代码示例
+
+<CodeGroup>
+
+```javascript JavaScript
+async function getUserInfo(token, uid) {
+  const response = await fetch(
+    `https://iot-api.quectelcn.com/v2/enduser/enterpriseapi/userInfo?uid=${uid}`,
+    {
+      method: 'GET',
+      headers: {
+        'Authorization': token,
+        'Content-Type': 'application/x-www-form-urlencoded'
+      }
+    }
+  );
+  
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  }
+  
+  return await response.json();
+}
+
+// 获取用户信息
+const userInfo = await getUserInfo(token, 'user123');
+console.log('用户信息:', userInfo.data);
+
+// 检查用户状态
+if (userInfo.data.status === 1) {
+  console.log('用户状态正常');
+} else {
+  console.log('用户已被禁用');
+}
+
+// 检查绑定的第三方账号
+const thirdPartyAccounts = {
+  wechat: userInfo.data.wechatUnionId,
+  qq: userInfo.data.qqUserId,
+  alipay: userInfo.data.alipayUserId,
+  apple: userInfo.data.appleUserId,
+  facebook: userInfo.data.facebookUserId,
+  twitter: userInfo.data.twitterUserId
+};
+
+Object.entries(thirdPartyAccounts).forEach(([platform, id]) => {
+  if (id) {
+    console.log(`已绑定${platform}账号: ${id}`);
+  }
+});
+
+// 格式化时间信息
+function formatUserTimes(user) {
+  return {
+    registerTime: new Date(user.registerTime).toLocaleDateString(),
+    lastLoginTime: new Date(user.lastLoginTime).toLocaleDateString(),
+    accountAge: Math.floor((Date.now() - user.registerTime) / (1000 * 60 * 60 * 24)) + '天'
+  };
+}
+
+const timeInfo = formatUserTimes(userInfo.data);
+console.log('注册时间:', timeInfo.registerTime);
+console.log('最后登录:', timeInfo.lastLoginTime);
+console.log('账号年龄:', timeInfo.accountAge);
+```
+
+```python Python
+import requests
+from datetime import datetime
+
+def get_user_info(token, uid):
+    """
+    获取用户信息
+    
+    Args:
+        token: JWT认证token
+        uid: 用户ID
+    
+    Returns:
+        用户详细信息
+    """
+    url = "https://iot-api.quectelcn.com/v2/enduser/enterpriseapi/userInfo"
+    
+    params = {"uid": uid}
+    
+    headers = {
+        "Authorization": token,
+        "Content-Type": "application/x-www-form-urlencoded"
+    }
+    
+    response = requests.get(url, params=params, headers=headers)
+    response.raise_for_status()
+    
+    return response.json()
+
+# 获取用户信息
+user_info = get_user_info(token, "user123")
+user_data = user_info["data"]
+
+print("用户信息:")
+print(f"  用户ID: {user_data['uid']}")
+print(f"  昵称: {user_data['nikeName']}")
+print(f"  手机号: {user_data['phone']}")
+print(f"  邮箱: {user_data['email']}")
+print(f"  状态: {'正常' if user_data['status'] == 1 else '禁用'}")
+
+# 地理位置信息
+location_info = []
+if user_data.get("nationality"):
+    location_info.append(f"国家: {user_data['nationality']}")
+if user_data.get("province"):
+    location_info.append(f"省份: {user_data['province']}")
+if user_data.get("city"):
+    location_info.append(f"城市: {user_data['city']}")
+
+if location_info:
+    print("地理位置:", " | ".join(location_info))
+
+# 时间信息处理
+def format_timestamp(timestamp):
+    """格式化时间戳"""
+    if timestamp and timestamp > 0:
+        return datetime.fromtimestamp(timestamp / 1000).strftime('%Y-%m-%d %H:%M:%S')
+    return "未知"
+
+print(f"注册时间: {format_timestamp(user_data.get('registerTime'))}")
+print(f"最后登录: {format_timestamp(user_data.get('lastLoginTime'))}")
+
+# 第三方账号绑定情况
+third_party_accounts = {
+    "微信": user_data.get("wechatUnionId"),
+    "微信小程序": user_data.get("wechatMiniprogramUserId"),
+    "微信公众号": user_data.get("wechatOffiaccountUserId"),
+    "QQ": user_data.get("qqUserId"),
+    "支付宝": user_data.get("alipayUserId"),
+    "Apple": user_data.get("appleUserId"),
+    "Facebook": user_data.get("facebookUserId"),
+    "Twitter": user_data.get("twitterUserId")
+}
+
+bound_accounts = [platform for platform, account_id in third_party_accounts.items() if account_id]
+if bound_accounts:
+    print(f"已绑定第三方账号: {', '.join(bound_accounts)}")
+else:
+    print("未绑定任何第三方账号")
+
+# 用户画像分析
+def analyze_user_profile(user_data):
+    """分析用户画像"""
+    profile = {
+        "completeness": 0,
+        "activity_level": "未知",
+        "security_level": "基础"
+    }
+    
+    # 计算资料完整度
+    fields = ["nikeName", "phone", "email", "address", "headimg"]
+    filled_fields = sum(1 for field in fields if user_data.get(field))
+    profile["completeness"] = (filled_fields / len(fields)) * 100
+    
+    # 评估活跃度
+    last_login = user_data.get("lastLoginTime", 0)
+    if last_login > 0:
+        days_since_login = (datetime.now().timestamp() * 1000 - last_login) / (1000 * 60 * 60 * 24)
+        if days_since_login < 7:
+            profile["activity_level"] = "高活跃"
+        elif days_since_login < 30:
+            profile["activity_level"] = "中活跃"
+        else:
+            profile["activity_level"] = "低活跃"
+    
+    # 评估安全等级
+    bound_count = len([acc for acc in third_party_accounts.values() if acc])
+    if bound_count >= 2:
+        profile["security_level"] = "高安全"
+    elif bound_count == 1:
+        profile["security_level"] = "中等安全"
+    
+    return profile
+
+profile = analyze_user_profile(user_data)
+print(f"资料完整度: {profile['completeness']:.1f}%")
+print(f"活跃度等级: {profile['activity_level']}")
+print(f"安全等级: {profile['security_level']}")
+```
+
+```curl cURL
+# 获取用户基本信息
+curl -X GET "https://iot-api.quectelcn.com/v2/enduser/enterpriseapi/userInfo?uid=user123" \
+  -H "Authorization: YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/x-www-form-urlencoded"
+
+# 获取特定用户信息
+curl -X GET "https://iot-api.quectelcn.com/v2/enduser/enterpriseapi/userInfo?uid=admin_user" \
+  -H "Authorization: YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/x-www-form-urlencoded"
+```
+
+</CodeGroup>
+
+## 响应示例
+
+### 成功响应
+
+```json
+{
+  "code": 200,
+  "msg": "OK",
+  "data": {
+    "uid": "user123",
+    "nikeName": "张三",
+    "phone": "138****8888",
+    "email": "zhangsan@example.com",
+    "status": 1,
+    "headimg": "https://example.com/avatar/user123.jpg",
+    "sex": "1",
+    "address": "北京市朝阳区某某街道123号",
+    "province": "北京市",
+    "city": "北京市",
+    "nationality": "中国",
+    "timezone": "Asia/Shanghai",
+    "lang": "zh-CN",
+    "signature": "热爱智能家居的技术爱好者",
+    "remark": "VIP用户",
+    "userDomain": "consumer",
+    "logonMode": 1,
+    "registerTime": 1673875200000,
+    "registerTimeTs": 1673875200000,
+    "lastLoginTime": 1702636800000,
+    "lastLoginTimeTs": 1702636800000,
+    "wechatUnionId": "unionid_12345",
+    "wechatMiniprogramUserId": "miniprogram_user_123",
+    "qqUserId": "qq_987654321",
+    "alipayUserId": "alipay_user_456"
+  }
+}
+```
+
+### 禁用用户响应
+
+```json
+{
+  "code": 200,
+  "msg": "OK",
+  "data": {
+    "uid": "user456",
+    "nikeName": "禁用用户",
+    "phone": "139****9999",
+    "status": 0,
+    "registerTime": 1673875200000,
+    "lastLoginTime": 1699200000000,
+    "remark": "因违规操作被禁用"
+  }
+}
+```
+
+## 字段说明
+
+### 基本信息
+
+| 字段 | 说明 | 示例 |
+|------|------|------|
+| uid | 用户唯一标识 | "user123" |
+| nikeName | 用户昵称 | "张三" |
+| phone | 手机号码 | "138****8888" |
+| email | 邮箱地址 | "user@example.com" |
+| status | 账号状态 | 0-禁用, 1-正常 |
+| sex | 性别 | "1"-男, "2"-女, "0"-未知 |
+| headimg | 头像URL | "https://..." |
+
+### 地理和语言信息
+
+<Tabs>
+  <Tab title="地理位置">
+    ```json
+    {
+      "nationality": "中国",
+      "province": "北京市",
+      "city": "北京市",
+      "address": "详细地址信息"
+    }
+    ```
+  </Tab>
+  
+  <Tab title="语言和时区">
+    ```json
+    {
+      "lang": "zh-CN",
+      "timezone": "Asia/Shanghai"
+    }
+    ```
+  </Tab>
+</Tabs>
+
+### 第三方账号绑定
+
+| 平台 | 字段名 | 说明 |
+|------|--------|------|
+| 微信 | wechatUnionId | 微信开放平台UnionID |
+| 微信小程序 | wechatMiniprogramUserId | 微信小程序用户ID |
+| 微信公众号 | wechatOffiaccountUserId | 微信公众号用户ID |
+| QQ | qqUserId | QQ开放平台用户ID |
+| 支付宝 | alipayUserId | 支付宝用户ID |
+| Apple | appleUserId | Apple ID |
+| Facebook | facebookUserId | Facebook用户ID |
+| Twitter | twitterUserId | Twitter用户ID |
+
+## 数据安全
+
+<Warning>
+**隐私保护**: 手机号码等敏感信息会进行脱敏处理，仅显示部分数字。完整信息仅在必要时提供给有权限的应用。
+</Warning>
+
+<Note>
+**数据时效性**: 用户信息可能存在缓存，最新修改可能需要几分钟后才能在此接口中体现。
+</Note>
+
+## 错误处理
+
+| 错误码 | 描述 | 解决方案 |
+|--------|------|----------|
+| 5032 | token验证失败 | 检查token有效性，重新获取token |
+| 5041 | 没有权限 | 检查SaaS应用用户权限配置 |
+| 5065 | 请输入用户ID | 提供有效的uid参数 |
+| 5106 | 请输入token | 提供有效的Authorization头 |
+
+## 使用场景
+
+<CardGroup cols={2}>
+  <Card title="用户资料展示" icon="user">
+    在应用中展示用户基本信息
+  </Card>
+  <Card title="账号状态检查" icon="shield-check">
+    验证用户账号是否正常可用
+  </Card>
+  <Card title="个性化推荐" icon="sparkles">
+    根据用户信息提供个性化服务
+  </Card>
+  <Card title="用户分析" icon="chart-bar">
+    分析用户画像和活跃度
+  </Card>
+</CardGroup>
+
+## 相关接口
+
+<CardGroup cols={2}>
+  <Card title="查询用户设备" href="/api-reference/endpoint/enduser-device-list">
+    获取用户设备列表
+  </Card>
+  <Card title="设置用户状态" href="/api-reference/endpoint/enduser-set-user-status">
+    修改用户账号状态
+  </Card>
+  <Card title="域用户列表" href="/api-reference/endpoint/enduser-domain-user-list">
+    查询域内用户列表
+  </Card>
+  <Card title="验证绑定码" href="/api-reference/endpoint/enduser-verify-binding-code">
+    验证设备绑定码
+  </Card>
+</CardGroup>

@@ -1,0 +1,382 @@
+---
+title: '查询用户设备列表'
+openapi: 'GET /v2/binding/enterpriseapi/userDeviceList'
+---
+
+## 查询用户设备列表
+
+查询指定用户绑定和接受分享的设备列表，支持分页查询。此接口用于获取终端用户拥有权限的所有设备信息。
+
+## 设备类型
+
+<CardGroup cols={2}>
+  <Card title="自有设备" icon="mobile">
+    用户直接绑定的设备
+  </Card>
+  <Card title="分享设备" icon="share">
+    其他用户分享给该用户的设备
+  </Card>
+</CardGroup>
+
+## 绑定模式
+
+<Info>
+**绑定模式类型**: 
+- **多绑模式**: 一个设备可以同时被多个用户绑定
+- **唯一模式**: 一个设备只能被一个用户绑定
+- **轮流模式**: 设备在多个用户间轮流使用
+</Info>
+
+## 接口地址
+
+`GET /v2/binding/enterpriseapi/userDeviceList`
+
+## 请求参数
+
+| 参数名 | 类型 | 必填 | 说明 |
+|--------|------|------|------|
+| uid | String | 是 | 用户ID |
+| page | Integer | 否 | 当前页，默认为第1页 |
+| pageSize | Integer | 否 | 页大小，默认为10条 |
+
+## 代码示例
+
+<CodeGroup>
+
+```javascript JavaScript
+async function getUserDeviceList(token, uid, page = 1, pageSize = 10) {
+  const response = await fetch(
+    `https://iot-api.quectelcn.com/v2/binding/enterpriseapi/userDeviceList?uid=${uid}&page=${page}&pageSize=${pageSize}`,
+    {
+      method: 'GET',
+      headers: {
+        'Authorization': token,
+        'Content-Type': 'application/x-www-form-urlencoded'
+      }
+    }
+  );
+  
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  }
+  
+  return await response.json();
+}
+
+// 获取用户设备列表
+const deviceList = await getUserDeviceList(token, 'user123', 1, 20);
+console.log('用户设备列表:', deviceList.data.list);
+
+// 遍历设备信息
+deviceList.data.list.forEach(device => {
+  console.log(`设备: ${device.deviceName} (${device.deviceKey})`);
+  console.log(`状态: ${device.onlineStatus === 1 ? '在线' : '离线'}`);
+  console.log(`类型: ${device.deviceType === 1 ? '自有设备' : '分享设备'}`);
+});
+
+// 检查分页信息
+if (deviceList.data.hasNextPage) {
+  console.log('还有更多设备，可以获取下一页');
+}
+```
+
+```python Python
+import requests
+
+def get_user_device_list(token, uid, page=1, page_size=10):
+    """
+    获取用户设备列表
+    
+    Args:
+        token: JWT认证token
+        uid: 用户ID
+        page: 页码，默认第1页
+        page_size: 每页数量，默认10条
+    
+    Returns:
+        用户设备列表数据
+    """
+    url = "https://iot-api.quectelcn.com/v2/binding/enterpriseapi/userDeviceList"
+    
+    params = {
+        "uid": uid,
+        "page": page,
+        "pageSize": page_size
+    }
+    
+    headers = {
+        "Authorization": token,
+        "Content-Type": "application/x-www-form-urlencoded"
+    }
+    
+    response = requests.get(url, params=params, headers=headers)
+    response.raise_for_status()
+    
+    return response.json()
+
+# 获取用户设备列表
+device_list = get_user_device_list(token, "user123", 1, 20)
+print("用户设备列表:", device_list["data"]["list"])
+
+# 分析设备信息
+for device in device_list["data"]["list"]:
+    print(f"设备: {device['deviceName']} ({device['deviceKey']})")
+    print(f"状态: {'在线' if device['onlineStatus'] == 1 else '离线'}")
+    print(f"类型: {'自有设备' if device['deviceType'] == 1 else '分享设备'}")
+    
+    # 检查是否为低功耗设备
+    if device.get("lowPowerProduct"):
+        print(f"低功耗设备，心跳周期: {device.get('lowPowerAlive', 0)}分钟")
+
+# 分页处理
+def get_all_user_devices(token, uid):
+    """获取用户所有设备"""
+    all_devices = []
+    page = 1
+    page_size = 50
+    
+    while True:
+        result = get_user_device_list(token, uid, page, page_size)
+        devices = result["data"]["list"]
+        all_devices.extend(devices)
+        
+        if not result["data"]["hasNextPage"]:
+            break
+        page += 1
+    
+    return all_devices
+
+# 获取用户所有设备
+all_devices = get_all_user_devices(token, "user123")
+print(f"用户总共有 {len(all_devices)} 个设备")
+```
+
+```curl cURL
+# 获取用户设备列表（基本查询）
+curl -X GET "https://iot-api.quectelcn.com/v2/binding/enterpriseapi/userDeviceList?uid=user123&page=1&pageSize=10" \
+  -H "Authorization: YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/x-www-form-urlencoded"
+
+# 获取更多设备（大页面）
+curl -X GET "https://iot-api.quectelcn.com/v2/binding/enterpriseapi/userDeviceList?uid=user123&page=1&pageSize=50" \
+  -H "Authorization: YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/x-www-form-urlencoded"
+
+# 获取第二页设备
+curl -X GET "https://iot-api.quectelcn.com/v2/binding/enterpriseapi/userDeviceList?uid=user123&page=2&pageSize=20" \
+  -H "Authorization: YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/x-www-form-urlencoded"
+```
+
+</CodeGroup>
+
+## 响应示例
+
+### 成功响应
+
+```json
+{
+  "code": 200,
+  "msg": "OK",
+  "data": {
+    "pageNum": 1,
+    "pageSize": 10,
+    "total": 25,
+    "pages": 3,
+    "hasNextPage": true,
+    "hasPreviousPage": false,
+    "isFirstPage": true,
+    "isLastPage": false,
+    "list": [
+      {
+        "deviceKey": "d67890",
+        "deviceName": "客厅温湿度传感器",
+        "productKey": "p12345",
+        "productName": "智能环境传感器",
+        "deviceType": 1,
+        "onlineStatus": 1,
+        "bindStatus": 1,
+        "bindMode": 1,
+        "bindingType": 3,
+        "accessType": "0",
+        "networkType": "1",
+        "deviceStatus": "NORMAL",
+        "activeTime": "2023-12-15T10:30:25Z",
+        "deviceBindTime": "2023-12-15T10:30:25Z",
+        "lastConnTime": "2023-12-15T14:30:25Z",
+        "signalStrength": "-45",
+        "lowPowerProduct": false,
+        "verified": "1",
+        "uid": "user123",
+        "userName": "张三",
+        "phone": "138****8888"
+      },
+      {
+        "deviceKey": "d67891",
+        "deviceName": "卧室智能开关",
+        "productKey": "p12346",
+        "productName": "WiFi智能开关",
+        "deviceType": 2,
+        "onlineStatus": 0,
+        "bindStatus": 1,
+        "bindMode": 1,
+        "bindingType": 2,
+        "accessType": "0",
+        "networkType": "1",
+        "deviceStatus": "NORMAL",
+        "activeTime": "2023-12-10T08:15:00Z",
+        "deviceBindTime": "2023-12-10T08:15:00Z",
+        "lastConnTime": "2023-12-14T22:45:30Z",
+        "lastOfflineTime": "2023-12-15T02:30:15Z",
+        "signalStrength": "-52",
+        "lowPowerProduct": false,
+        "verified": "1",
+        "ownerUid": "user456",
+        "shareCode": "SC123456",
+        "sharingExpireAt": "2024-06-15T00:00:00Z"
+      }
+    ]
+  }
+}
+```
+
+## 设备信息字段说明
+
+### 设备基本信息
+
+| 字段 | 说明 | 取值 |
+|------|------|------|
+| deviceType | 设备类型 | 1-自有设备, 2-分享设备 |
+| onlineStatus | 在线状态 | 0-离线, 1-在线 |
+| bindStatus | 绑定状态 | 1-正常, 2-失效 |
+| bindMode | 绑定模式 | 1-多绑模式, 2-唯一模式, 3-轮流模式 |
+| bindingType | 绑定类型 | 1-SN绑定, 2-WiFi绑定, 3-PKDK绑定, 4-蓝牙绑定 |
+| accessType | 访问类型 | 0-直连设备, 1-网关设备, 2-网关子设备 |
+| networkType | 网络类型 | 1-WiFi, 2-蜂窝, 3-NB, 5-蓝牙 |
+| verified | 认证状态 | 0-未认证, 1-已认证 |
+
+### 低功耗设备信息
+
+<Tabs>
+  <Tab title="普通设备">
+    ```json
+    {
+      "lowPowerProduct": false,
+      "lowPowerStatus": false
+    }
+    ```
+    普通设备持续在线，实时通信
+  </Tab>
+  
+  <Tab title="低功耗设备">
+    ```json
+    {
+      "lowPowerProduct": true,
+      "lowPowerStatus": true,
+      "lowPowerAlive": 30,
+      "lowPowerCache": 3600
+    }
+    ```
+    低功耗设备定期上线，支持离线缓存
+  </Tab>
+</Tabs>
+
+## 设备过滤和分组
+
+```javascript
+// 设备分组示例
+function categorizeDevices(devices) {
+  const categories = {
+    online: [],
+    offline: [],
+    shared: [],
+    lowPower: [],
+    gateway: []
+  };
+  
+  devices.forEach(device => {
+    // 按在线状态分组
+    if (device.onlineStatus === 1) {
+      categories.online.push(device);
+    } else {
+      categories.offline.push(device);
+    }
+    
+    // 分享设备
+    if (device.deviceType === 2) {
+      categories.shared.push(device);
+    }
+    
+    // 低功耗设备
+    if (device.lowPowerProduct) {
+      categories.lowPower.push(device);
+    }
+    
+    // 网关设备
+    if (device.accessType === "1") {
+      categories.gateway.push(device);
+    }
+  });
+  
+  return categories;
+}
+
+// 设备统计
+function getDeviceStats(devices) {
+  const stats = {
+    total: devices.length,
+    online: devices.filter(d => d.onlineStatus === 1).length,
+    offline: devices.filter(d => d.onlineStatus === 0).length,
+    shared: devices.filter(d => d.deviceType === 2).length,
+    lowPower: devices.filter(d => d.lowPowerProduct).length
+  };
+  
+  stats.onlineRate = ((stats.online / stats.total) * 100).toFixed(1) + '%';
+  
+  return stats;
+}
+```
+
+## 错误处理
+
+| 错误码 | 描述 | 解决方案 |
+|--------|------|----------|
+| 5032 | token验证失败 | 检查token有效性，重新获取token |
+| 5033 | 用户不存在 | 验证用户ID是否正确 |
+| 5041 | 没有权限 | 检查SaaS应用用户权限配置 |
+| 5065 | 请输入用户ID | 提供有效的uid参数 |
+| 5106 | 请输入token | 提供有效的Authorization头 |
+
+## 使用场景
+
+<CardGroup cols={2}>
+  <Card title="设备管理" icon="list">
+    查看用户拥有的所有设备列表
+  </Card>
+  <Card title="状态监控" icon="chart-line">
+    监控设备在线状态和连接情况
+  </Card>
+  <Card title="权限管理" icon="shield">
+    区分自有设备和分享设备权限
+  </Card>
+  <Card title="批量操作" icon="layers">
+    基于设备列表进行批量控制
+  </Card>
+</CardGroup>
+
+## 相关接口
+
+<CardGroup cols={2}>
+  <Card title="获取用户信息" href="/api-reference/endpoint/enduser-user-info">
+    查询用户基本信息
+  </Card>
+  <Card title="设备详情查询" href="/api-reference/endpoint/device-detail">
+    获取设备详细信息
+  </Card>
+  <Card title="设备数据读取" href="/api-reference/endpoint/device-data-read">
+    读取设备物模型数据
+  </Card>
+  <Card title="设备控制" href="/api-reference/endpoint/device-property-write">
+    控制设备属性
+  </Card>
+</CardGroup>

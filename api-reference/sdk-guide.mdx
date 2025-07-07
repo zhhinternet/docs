@@ -1,0 +1,340 @@
+---
+title: "OpenAPI SDK使用指导"
+description: "OpenAPI SDK主要用于SaaS系统对接集成，实现通过SaaS应用进行产品设备管理与远程控制设备。"
+---
+
+## OpenAPI SDK使用指导
+
+OpenAPI SDK主要用于SaaS系统对接集成，实现通过SaaS应用进行产品设备管理与远程控制设备。
+
+## 开发准备
+
+### 前置条件
+
+<Info>
+在使用SDK之前，请先完成[OpenAPI接入说明](/api-reference/introduction)中的前置步骤，包括创建SaaS应用、开通API服务、授权产品数据和获取访问凭证。
+</Info>
+
+### 开发环境要求
+
+<CardGroup cols={3}>
+  <Card title="JDK版本" icon="coffee">
+    JDK 8 或更高版本
+  </Card>
+  <Card title="构建工具" icon="tools">
+    Maven 3.0+ 或 Gradle
+  </Card>
+  <Card title="开发工具" icon="code">
+    任意Java IDE（推荐IDEA）
+  </Card>
+</CardGroup>
+
+<Note>
+SDK基于Java开发，同时支持Maven和Gradle构建工具。示例代码使用Maven配置。
+</Note>
+
+## SDK功能列表
+
+### quecloud-sdk-dev-mgr (产品设备管理)
+
+<AccordionGroup>
+  <Accordion title="产品管理功能">
+    | 方法名称 | 功能描述 |
+    |----------|----------|
+    | getProductItems | 获取产品品类 |
+    | getProductDetail | 获取产品详情 |
+    | getProductList | 获取产品列表 |
+    | getTslJson | 获取物模型数据 |
+  </Accordion>
+  
+  <Accordion title="设备管理功能">
+    | 方法名称 | 功能描述 |
+    |----------|----------|
+    | getDeviceList | 获取设备列表 |
+    | getDeviceDetail | 获取设备详情 |
+    | deviceResource | 获取设备资源 |
+    | getDeviceDataHistory | 获取设备历史上下行数据 |
+    | getDeviceEventData | 获取设备事件日志数据 |
+    | getDeviceLocationLatest | 获取设备定位信息数据 |
+  </Accordion>
+  
+  <Accordion title="SN管理功能">
+    | 方法名称 | 功能描述 |
+    |----------|----------|
+    | generateSn | 获取SN |
+    | createSnBindDevice | 创建SN与设备绑定关系 |
+    | findDkList | 根据PK与SN列表查询对应的设备列表 |
+    | findSnList | 根据设备列表查询对应的sn列表 |
+    | delSnBindDevice | 删除SN与设备绑定关系 |
+  </Accordion>
+  
+  <Accordion title="队列订阅功能">
+    | 方法名称 | 功能描述 |
+    |----------|----------|
+    | createQuece | 创建队列 |
+    | deleteQuece | 删除队列 |
+    | getQueceDetail | 获取队列详情 |
+    | createSubscribe | 创建普通订阅 |
+    | createEnterpriseUserSubscribe | 创建企业用户订阅 |
+    | createSaasUserSubscribe | 创建SaaS用户订阅 |
+    | createEndUserSubscribe | 创建终端用户订阅 |
+    | getSubscribeDetail | 获取订阅详情 |
+    | startSubscribe | 启动订阅 |
+    | stopSubscribe | 停止订阅 |
+    | deleteSubscribe | 删除订阅 |
+  </Accordion>
+</AccordionGroup>
+
+### quecloud-sdk-dev-msg (设备消息管理)
+
+| 方法名称 | 功能描述 |
+|----------|----------|
+| sendDeviceData | 设备发送下行数据 |
+| batchSendDeviceData | 批量设备发送下行数据 |
+| deviceDmReadData | 设备读取物模型属性数据 |
+| deviceDmWriteData | 设备发送下行物模型数据 |
+| deviceRawSendData | 设备发送下行透传数据 |
+| deviceDmsendServiceData | 设备发送下行物模型服务数据 |
+
+## SDK安装配置
+
+### 依赖引入
+
+<CodeGroup>
+
+```xml Maven - 产品设备管理SDK
+<dependency>
+  <groupId>com.quectel.aiot</groupId>
+  <artifactId>quecloud-sdk-standard-mgr</artifactId>
+  <version>2.1.0.RELEASE</version>
+</dependency>
+```
+
+```xml Maven - 设备数据上下行管理SDK
+<dependency>
+    <groupId>com.quectel.aiot</groupId>
+    <artifactId>quecloud-sdk-dev-msg</artifactId>
+    <version>1.9.0.RELEASE</version>
+</dependency>
+```
+
+```gradle Gradle - 产品设备管理SDK
+implementation 'com.quectel.aiot:quecloud-sdk-standard-mgr:2.1.0.RELEASE'
+```
+
+```gradle Gradle - 设备数据上下行管理SDK
+implementation 'com.quectel.aiot:quecloud-sdk-dev-msg:1.9.0.RELEASE'
+```
+
+</CodeGroup>
+
+### SDK初始化
+
+<Steps>
+  <Step title="创建配置对象">
+    创建InitClientProfile对象，存放accessKey、accessSecret、endpoint等信息
+  </Step>
+  <Step title="创建客户端对象">
+    - 产品设备管理：初始化MgrClient对象
+    - 设备上下行：初始化MsgClient对象
+  </Step>
+</Steps>
+
+## SDK使用示例
+
+### 基本使用流程
+
+<Info>
+SaaS SDK为每个API封装两个类，分别是请求参数类(*Request)和请求响应类(*Response)。
+</Info>
+
+<Steps>
+  <Step title="完成SDK初始化">
+    获取MgrClient/MsgClient对象
+  </Step>
+  <Step title="创建请求参数对象">
+    创建对应API请求方法的参数对象
+  </Step>
+  <Step title="设置请求参数">
+    使用set方法设置API所需的请求参数值
+  </Step>
+  <Step title="调用API方法">
+    通过Client对象调用对应方法获取响应对象
+  </Step>
+  <Step title="处理响应结果">
+    每个响应对象包含success、msg、errorMsg、body等字段
+  </Step>
+</Steps>
+
+### 设备下行数据发送示例
+
+```java
+public static void main(String[] args) {
+    try {
+        // accessKey和accessSecret是开发者中心用户创建的凭证
+        InitClientProfile initClientProfile = new InitClientProfile(
+                "${accessKey}",
+                "${accessSecret}",
+                "iot-api.quectelcn.com");
+        
+        // 获取MsgClient对象。建议使用单例模式
+        MsgClient msgClient = new MsgClient(initClientProfile);
+
+        // 消息类型：PASSTHROUGH(透传) | PROPERTY(属性) | SERVICE(服务)
+        String type = "PROPERTY";
+        // 操作类型：GET(上报) | DOWN(下发)
+        String operate = "DOWN";
+
+        // 单设备下发物模型属性数据
+        DeviceSendDataRequest deviceSendTslDataRequest = new DeviceSendDataRequest(
+                "${productKey}",
+                "${deviceKey}",
+                "${data}",
+                type,
+                operate);
+                
+        DeviceSendDataResponse tslResult = msgClient.sendDeviceData(deviceSendTslDataRequest);
+        log.info("单设备下发物模型数据返回结果:{}", JSONObject.toJSONString(tslResult));
+        
+    } catch(Exception e) {
+        log.info("单设备下发物模型属性数据出错", e);
+    }
+}
+```
+
+## 数据格式详解
+
+### 物模型数据格式
+
+<Tabs>
+  <Tab title="基础类型">
+    ```json
+    // bool/int/float/double/enum/date/text
+    "[{\"key\":\"value\"}]"
+    ```
+    适用于基本数据类型的属性设置
+  </Tab>
+  
+  <Tab title="数组类型">
+    ```json
+    // array格式
+    "[{\"key\":[{\"0\":\"value1\"},{\"0\":\"value2\"}]}]"
+    ```
+    数组类型属性，id固定为0
+  </Tab>
+  
+  <Tab title="结构体类型">
+    ```json
+    // struct格式
+    "[{\"key\":[{\"key1\":\"value1\"},{\"key2\":\"value2\"}]}]"
+    ```
+    结构体类型的复合属性
+  </Tab>
+  
+  <Tab title="复合类型">
+    ```json
+    // array含有struct
+    "[{\"key\":[{\"0\":[{\"key1\":\"value1\"}]},{\"0\":[{\"key2\":\"value2\"}]}]}]"
+    ```
+    数组包含结构体的复合数据类型
+  </Tab>
+</Tabs>
+
+### 服务调用数据格式
+
+<Tabs>
+  <Tab title="基础服务">
+    ```json
+    // 基础类型服务调用
+    "[{\"key\":[{\"key1\":\"value1\"},{\"key2\":\"value2\"},{\"key3\":\"value3\"}]}]"
+    ```
+  </Tab>
+  
+  <Tab title="数组服务">
+    ```json
+    // 数组类型服务调用
+    "[{\"key\":[{\"key1\":[{\"0\":\"value1\"},{\"0\":\"value1\"}]}]}]"
+    ```
+  </Tab>
+  
+  <Tab title="结构体服务">
+    ```json
+    // 结构体类型服务调用
+    "[{\"key\":[{\"key1\":[{\"key2\":\"value2\"},{\"key3\":\"value3\"}]}]}]"
+    ```
+  </Tab>
+  
+  <Tab title="复合服务">
+    ```json
+    // array含有struct的服务调用
+    "[{\"key\":[{\"key1\":[{\"0\":[{\"key2\":\"value2\"}]},{\"0\":[{\"key3\":\"value3\"}]}]}]}]"
+    ```
+  </Tab>
+</Tabs>
+
+## 响应对象结构
+
+每个API响应对象包含以下字段：
+
+| 字段名 | 类型 | 说明 |
+|--------|------|------|
+| success | boolean | 是否成功标识 |
+| msg | String | 返回信息 |
+| errorMsg | String | 错误信息（success为false时返回具体错误信息） |
+| body | Object | 承载每个API返回的具体信息值 |
+
+## SDK示例代码
+
+<CardGroup cols={2}>
+  <Card title="产品设备管理SDK" href="https://github.com/thridparty-cloud2/quecloud-sdk-dev-mgr-demonstration.git" icon="github">
+    完整的产品设备管理SDK示例代码
+  </Card>
+  <Card title="设备数据上下行SDK" href="https://github.com/thridparty-cloud2/quecloud-sdk-dev-msg-demonstration.git" icon="github">
+    设备数据上下行管理SDK示例代码
+  </Card>
+</CardGroup>
+
+## 最佳实践
+
+<AccordionGroup>
+  <Accordion title="SDK初始化优化">
+    - 使用单例模式管理Client对象
+    - 合理配置连接池和超时时间
+    - 避免频繁创建和销毁Client实例
+  </Accordion>
+  
+  <Accordion title="错误处理">
+    - 始终使用try-catch包装SDK调用
+    - 检查响应对象的success标识
+    - 记录详细的错误日志便于排查
+  </Accordion>
+  
+  <Accordion title="性能优化">
+    - 合理使用批量接口减少API调用次数
+    - 实施适当的重试机制
+    - 监控API调用频率避免触发限流
+  </Accordion>
+  
+  <Accordion title="安全考虑">
+    - 安全存储AccessKey和AccessSecret
+    - 定期轮换访问凭证
+    - 使用HTTPS确保传输安全
+  </Accordion>
+</AccordionGroup>
+
+## 相关资源
+
+<CardGroup cols={2}>
+  <Card title="API列表" href="/api-reference/introduction">
+    查看完整的OpenAPI接口列表
+  </Card>
+  <Card title="开发指南" href="/development">
+    了解更多开发相关信息
+  </Card>
+  <Card title="故障排除" href="/troubleshooting">
+    常见问题和解决方案
+  </Card>
+  <Card title="技术支持" href="mailto:support@quectel.com">
+    获取技术支持服务
+  </Card>
+</CardGroup>

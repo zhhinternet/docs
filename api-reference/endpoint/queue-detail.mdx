@@ -1,0 +1,895 @@
+---
+title: '查询队列详情'
+openapi: 'GET /v2/quecrule/r1/openapi/queue/detail'
+---
+
+## 队列详情查询
+
+获取指定消息队列的详细信息，包括队列状态、消息统计、连接配置和管理信息。这个接口提供了队列管理和监控所需的全面数据。
+
+## 返回信息
+
+<CardGroup cols={2}>
+  <Card title="基本信息" icon="info-circle">
+    队列名称、ID、描述和创建时间
+  </Card>
+  <Card title="消息统计" icon="chart-bar">
+    消息数量、消费速率和堆积大小
+  </Card>
+  <Card title="连接配置" icon="plug">
+    AMQP连接地址和访问参数
+  </Card>
+  <Card title="运行状态" icon="heartbeat">
+    队列状态、更新时间和健康度
+  </Card>
+</CardGroup>
+
+## 使用场景
+
+<CardGroup cols={3}>
+  <Card title="监控告警" icon="bell">
+    监控队列消息积压和处理性能
+  </Card>
+  <Card title="故障排查" icon="wrench">
+    诊断队列异常和连接问题
+  </Card>
+  <Card title="容量规划" icon="chart-line">
+    分析队列使用情况制定扩容计划
+  </Card>
+</CardGroup>
+
+## 代码示例
+
+<CodeGroup>
+
+```javascript JavaScript
+async function getQueueDetail(token, queueId) {
+  const response = await fetch(
+    `https://iot-api.quectelcn.com/v2/quecrule/r1/openapi/queue/detail?queueId=${queueId}`,
+    {
+      method: 'GET',
+      headers: {
+        'Authorization': token,
+        'Content-Type': 'application/x-www-form-urlencoded'
+      }
+    }
+  );
+  
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  }
+  
+  return await response.json();
+}
+
+// 基本查询操作
+try {
+  const detail = await getQueueDetail(token, 12345);
+  console.log('队列详情:', detail.data);
+} catch (error) {
+  console.error('获取队列详情失败:', error.message);
+}
+
+// 队列状态检查器
+async function checkQueueHealth(token, queueId) {
+  try {
+    const detail = await getQueueDetail(token, queueId);
+    const queueData = detail.data;
+    
+    const healthStatus = {
+      queueId: queueId,
+      queueName: queueData.queueName,
+      isHealthy: true,
+      issues: [],
+      recommendations: []
+    };
+    
+    // 检查队列状态
+    if (queueData.status !== 0) {
+      healthStatus.isHealthy = false;
+      healthStatus.issues.push(`队列状态异常: ${queueData.status}`);
+    }
+    
+    // 检查消息积压
+    if (queueData.msgNum > 10000) {
+      healthStatus.isHealthy = false;
+      healthStatus.issues.push(`消息积压过多: ${queueData.msgNum}`);
+      healthStatus.recommendations.push('考虑增加消费者数量或优化消息处理逻辑');
+    }
+    
+    // 检查消费速率
+    const consumeRate = parseFloat(queueData.consumeRate);
+    if (consumeRate === 0 && queueData.msgNum > 0) {
+      healthStatus.isHealthy = false;
+      healthStatus.issues.push('消费速率为0但存在消息积压');
+      healthStatus.recommendations.push('检查消费者连接状态');
+    }
+    
+    // 检查连接地址
+    if (!queueData.connectUrl) {
+      healthStatus.issues.push('缺少连接地址配置');
+    }
+    
+    return healthStatus;
+    
+  } catch (error) {
+    return {
+      queueId: queueId,
+      isHealthy: false,
+      issues: [`获取队列详情失败: ${error.message}`],
+      recommendations: ['检查网络连接和认证信息']
+    };
+  }
+}
+
+// 批量检查多个队列
+async function checkMultipleQueues(token, queueIds) {
+  const results = [];
+  
+  for (const queueId of queueIds) {
+    const health = await checkQueueHealth(token, queueId);
+    results.push(health);
+    
+    // 输出健康状态
+    if (health.isHealthy) {
+      console.log(`✓ 队列 ${queueId} (${health.queueName}) 状态正常`);
+    } else {
+      console.log(`✗ 队列 ${queueId} (${health.queueName}) 存在问题:`);
+      health.issues.forEach(issue => console.log(`  - ${issue}`));
+      if (health.recommendations.length > 0) {
+        console.log('  建议:');
+        health.recommendations.forEach(rec => console.log(`  - ${rec}`));
+      }
+    }
+  }
+  
+  return results;
+}
+
+// 队列监控管理器
+class QueueMonitoringManager {
+  constructor(token) {
+    this.token = token;
+    this.monitoringTasks = new Map();
+    this.alertThresholds = {
+      maxMessages: 5000,
+      maxAge: 24 * 60 * 60 * 1000, // 24小时
+      minConsumeRate: 0.1
+    };
+  }
+  
+  async getQueueMetrics(queueId) {
+    const detail = await getQueueDetail(this.token, queueId);
+    const queueData = detail.data;
+    
+    return {
+      queueId: queueId,
+      queueName: queueData.queueName,
+      messageCount: queueData.msgNum,
+      messageSize: queueData.msgSize,
+      consumeRate: parseFloat(queueData.consumeRate),
+      status: queueData.status,
+      createTime: new Date(queueData.createTime),
+      updateTime: queueData.updateTime ? new Date(queueData.updateTime) : null,
+      connectUrl: queueData.connectUrl,
+      description: queueData.queueDesc
+    };
+  }
+  
+  async startMonitoring(queueId, intervalMinutes = 5) {
+    const intervalMs = intervalMinutes * 60 * 1000;
+    
+    const task = setInterval(async () => {
+      try {
+        const metrics = await this.getQueueMetrics(queueId);
+        
+        // 检查告警条件
+        const alerts = this.checkAlerts(metrics);
+        
+        if (alerts.length > 0) {
+          console.log(`⚠️  队列 ${metrics.queueName} 触发告警:`);
+          alerts.forEach(alert => console.log(`  - ${alert}`));
+        }
+        
+        // 记录监控数据
+        console.log(`📊 队列 ${metrics.queueName} 监控数据:`);
+        console.log(`  消息数: ${metrics.messageCount}`);
+        console.log(`  消费速率: ${metrics.consumeRate}/s`);
+        console.log(`  状态: ${metrics.status}`);
+        
+      } catch (error) {
+        console.error(`监控队列 ${queueId} 时发生错误:`, error.message);
+      }
+    }, intervalMs);
+    
+    this.monitoringTasks.set(queueId, task);
+    console.log(`开始监控队列 ${queueId}，间隔 ${intervalMinutes} 分钟`);
+    
+    return task;
+  }
+  
+  stopMonitoring(queueId) {
+    const task = this.monitoringTasks.get(queueId);
+    if (task) {
+      clearInterval(task);
+      this.monitoringTasks.delete(queueId);
+      console.log(`停止监控队列 ${queueId}`);
+      return true;
+    }
+    return false;
+  }
+  
+  checkAlerts(metrics) {
+    const alerts = [];
+    
+    // 消息积压告警
+    if (metrics.messageCount > this.alertThresholds.maxMessages) {
+      alerts.push(`消息积压超过阈值: ${metrics.messageCount} > ${this.alertThresholds.maxMessages}`);
+    }
+    
+    // 消费速率告警
+    if (metrics.consumeRate < this.alertThresholds.minConsumeRate && metrics.messageCount > 0) {
+      alerts.push(`消费速率过低: ${metrics.consumeRate} < ${this.alertThresholds.minConsumeRate}`);
+    }
+    
+    // 状态异常告警
+    if (metrics.status !== 0) {
+      alerts.push(`队列状态异常: ${metrics.status}`);
+    }
+    
+    return alerts;
+  }
+  
+  async generateReport(queueIds) {
+    const report = {
+      timestamp: new Date().toISOString(),
+      totalQueues: queueIds.length,
+      healthyQueues: 0,
+      unhealthyQueues: 0,
+      totalMessages: 0,
+      queues: []
+    };
+    
+    for (const queueId of queueIds) {
+      try {
+        const metrics = await this.getQueueMetrics(queueId);
+        const alerts = this.checkAlerts(metrics);
+        
+        const queueReport = {
+          ...metrics,
+          isHealthy: alerts.length === 0,
+          alerts: alerts
+        };
+        
+        report.queues.push(queueReport);
+        
+        if (queueReport.isHealthy) {
+          report.healthyQueues++;
+        } else {
+          report.unhealthyQueues++;
+        }
+        
+        report.totalMessages += metrics.messageCount;
+        
+      } catch (error) {
+        report.queues.push({
+          queueId: queueId,
+          error: error.message,
+          isHealthy: false
+        });
+        report.unhealthyQueues++;
+      }
+    }
+    
+    return report;
+  }
+  
+  stopAllMonitoring() {
+    this.monitoringTasks.forEach(task => clearInterval(task));
+    this.monitoringTasks.clear();
+    console.log('所有监控任务已停止');
+  }
+}
+
+// 使用监控管理器
+const monitor = new QueueMonitoringManager(token);
+
+// 单个队列监控
+const metrics = await monitor.getQueueMetrics(12345);
+console.log('队列指标:', metrics);
+
+// 开始监控
+monitor.startMonitoring(12345, 1); // 每分钟检查一次
+
+// 生成报告
+const queueIds = [12345, 54321, 67890];
+const report = await monitor.generateReport(queueIds);
+console.log('队列健康报告:', report);
+
+// 队列连接信息解析器
+function parseConnectUrl(connectUrl) {
+  if (!connectUrl) return null;
+  
+  try {
+    const url = new URL(connectUrl);
+    return {
+      protocol: url.protocol.slice(0, -1), // 去掉冒号
+      hostname: url.hostname,
+      port: url.port || (url.protocol === 'amqps:' ? 5671 : 5672),
+      virtualHost: url.pathname.slice(1), // 去掉开头的斜杠
+      isSecure: url.protocol === 'amqps:'
+    };
+  } catch (error) {
+    console.error('解析连接地址失败:', error.message);
+    return null;
+  }
+}
+
+// 使用示例
+const detail = await getQueueDetail(token, 12345);
+const connectionInfo = parseConnectUrl(detail.data.connectUrl);
+console.log('连接信息:', connectionInfo);
+```
+
+```python Python
+import requests
+import time
+import json
+from typing import Dict, List, Optional
+from datetime import datetime, timedelta
+from urllib.parse import urlparse
+
+def get_queue_detail(token: str, queue_id: int) -> Dict:
+    """
+    获取队列详细信息
+    
+    Args:
+        token: JWT认证token
+        queue_id: 队列ID
+        
+    Returns:
+        队列详情数据
+    """
+    url = f"https://iot-api.quectelcn.com/v2/quecrule/r1/openapi/queue/detail"
+    
+    headers = {
+        "Authorization": token,
+        "Content-Type": "application/x-www-form-urlencoded"
+    }
+    
+    params = {"queueId": queue_id}
+    
+    response = requests.get(url, headers=headers, params=params)
+    response.raise_for_status()
+    
+    return response.json()
+
+# 基本查询操作
+try:
+    detail = get_queue_detail(token, 12345)
+    print(f"队列详情: {detail['data']}")
+except Exception as e:
+    print(f"获取队列详情失败: {e}")
+
+# 队列健康检查器
+def check_queue_health(token: str, queue_id: int) -> Dict:
+    """检查队列健康状态"""
+    
+    try:
+        detail = get_queue_detail(token, queue_id)
+        queue_data = detail['data']
+        
+        health_status = {
+            "queue_id": queue_id,
+            "queue_name": queue_data.get('queueName', ''),
+            "is_healthy": True,
+            "issues": [],
+            "recommendations": []
+        }
+        
+        # 检查队列状态
+        if queue_data.get('status', 0) != 0:
+            health_status["is_healthy"] = False
+            health_status["issues"].append(f"队列状态异常: {queue_data['status']}")
+        
+        # 检查消息积压
+        msg_num = queue_data.get('msgNum', 0)
+        if msg_num > 10000:
+            health_status["is_healthy"] = False
+            health_status["issues"].append(f"消息积压过多: {msg_num}")
+            health_status["recommendations"].append("考虑增加消费者数量或优化消息处理逻辑")
+        
+        # 检查消费速率
+        consume_rate = float(queue_data.get('consumeRate', '0'))
+        if consume_rate == 0 and msg_num > 0:
+            health_status["is_healthy"] = False
+            health_status["issues"].append("消费速率为0但存在消息积压")
+            health_status["recommendations"].append("检查消费者连接状态")
+        
+        # 检查连接地址
+        if not queue_data.get('connectUrl'):
+            health_status["issues"].append("缺少连接地址配置")
+        
+        return health_status
+        
+    except Exception as e:
+        return {
+            "queue_id": queue_id,
+            "is_healthy": False,
+            "issues": [f"获取队列详情失败: {e}"],
+            "recommendations": ["检查网络连接和认证信息"]
+        }
+
+# 批量检查多个队列
+def check_multiple_queues(token: str, queue_ids: List[int]) -> List[Dict]:
+    """批量检查队列健康状态"""
+    
+    results = []
+    
+    for queue_id in queue_ids:
+        health = check_queue_health(token, queue_id)
+        results.append(health)
+        
+        # 输出健康状态
+        if health["is_healthy"]:
+            print(f"✓ 队列 {queue_id} ({health['queue_name']}) 状态正常")
+        else:
+            print(f"✗ 队列 {queue_id} ({health['queue_name']}) 存在问题:")
+            for issue in health["issues"]:
+                print(f"  - {issue}")
+            if health["recommendations"]:
+                print("  建议:")
+                for rec in health["recommendations"]:
+                    print(f"  - {rec}")
+    
+    return results
+
+# 队列监控管理器
+class QueueMonitoringManager:
+    def __init__(self, token: str):
+        self.token = token
+        self.alert_thresholds = {
+            "max_messages": 5000,
+            "max_age_hours": 24,
+            "min_consume_rate": 0.1
+        }
+        self.monitoring_active = False
+    
+    def get_queue_metrics(self, queue_id: int) -> Dict:
+        """获取队列指标"""
+        
+        detail = get_queue_detail(self.token, queue_id)
+        queue_data = detail['data']
+        
+        metrics = {
+            "queue_id": queue_id,
+            "queue_name": queue_data.get('queueName', ''),
+            "message_count": queue_data.get('msgNum', 0),
+            "message_size": queue_data.get('msgSize', '0'),
+            "consume_rate": float(queue_data.get('consumeRate', '0')),
+            "status": queue_data.get('status', 0),
+            "connect_url": queue_data.get('connectUrl', ''),
+            "description": queue_data.get('queueDesc', ''),
+            "create_time": queue_data.get('createTime'),
+            "update_time": queue_data.get('updateTime')
+        }
+        
+        return metrics
+    
+    def check_alerts(self, metrics: Dict) -> List[str]:
+        """检查告警条件"""
+        
+        alerts = []
+        
+        # 消息积压告警
+        if metrics["message_count"] > self.alert_thresholds["max_messages"]:
+            alerts.append(f"消息积压超过阈值: {metrics['message_count']} > {self.alert_thresholds['max_messages']}")
+        
+        # 消费速率告警
+        if metrics["consume_rate"] < self.alert_thresholds["min_consume_rate"] and metrics["message_count"] > 0:
+            alerts.append(f"消费速率过低: {metrics['consume_rate']} < {self.alert_thresholds['min_consume_rate']}")
+        
+        # 状态异常告警
+        if metrics["status"] != 0:
+            alerts.append(f"队列状态异常: {metrics['status']}")
+        
+        return alerts
+    
+    def generate_report(self, queue_ids: List[int]) -> Dict:
+        """生成队列健康报告"""
+        
+        report = {
+            "timestamp": datetime.now().isoformat(),
+            "total_queues": len(queue_ids),
+            "healthy_queues": 0,
+            "unhealthy_queues": 0,
+            "total_messages": 0,
+            "queues": []
+        }
+        
+        for queue_id in queue_ids:
+            try:
+                metrics = self.get_queue_metrics(queue_id)
+                alerts = self.check_alerts(metrics)
+                
+                queue_report = {
+                    **metrics,
+                    "is_healthy": len(alerts) == 0,
+                    "alerts": alerts
+                }
+                
+                report["queues"].append(queue_report)
+                
+                if queue_report["is_healthy"]:
+                    report["healthy_queues"] += 1
+                else:
+                    report["unhealthy_queues"] += 1
+                
+                report["total_messages"] += metrics["message_count"]
+                
+            except Exception as e:
+                report["queues"].append({
+                    "queue_id": queue_id,
+                    "error": str(e),
+                    "is_healthy": False
+                })
+                report["unhealthy_queues"] += 1
+        
+        return report
+    
+    def export_report(self, report: Dict, filename: str = None) -> str:
+        """导出报告到文件"""
+        
+        if not filename:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"queue_health_report_{timestamp}.json"
+        
+        with open(filename, 'w', encoding='utf-8') as f:
+            json.dump(report, f, ensure_ascii=False, indent=2)
+        
+        return filename
+    
+    def start_continuous_monitoring(self, queue_ids: List[int], interval_minutes: int = 5):
+        """开始持续监控"""
+        
+        self.monitoring_active = True
+        
+        while self.monitoring_active:
+            try:
+                print(f"开始监控检查 - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+                
+                for queue_id in queue_ids:
+                    try:
+                        metrics = self.get_queue_metrics(queue_id)
+                        alerts = self.check_alerts(metrics)
+                        
+                        if alerts:
+                            print(f"⚠️  队列 {metrics['queue_name']} 触发告警:")
+                            for alert in alerts:
+                                print(f"  - {alert}")
+                        
+                        print(f"📊 队列 {metrics['queue_name']} 监控数据:")
+                        print(f"  消息数: {metrics['message_count']}")
+                        print(f"  消费速率: {metrics['consume_rate']}/s")
+                        print(f"  状态: {metrics['status']}")
+                        
+                    except Exception as e:
+                        print(f"监控队列 {queue_id} 时发生错误: {e}")
+                
+                # 等待下一次检查
+                time.sleep(interval_minutes * 60)
+                
+            except KeyboardInterrupt:
+                print("监控被用户中断")
+                break
+            except Exception as e:
+                print(f"监控过程中发生错误: {e}")
+                time.sleep(30)  # 错误后等待30秒再继续
+    
+    def stop_monitoring(self):
+        """停止监控"""
+        self.monitoring_active = False
+        print("监控已停止")
+
+# 连接信息解析器
+def parse_connect_url(connect_url: str) -> Optional[Dict]:
+    """解析AMQP连接地址"""
+    
+    if not connect_url:
+        return None
+    
+    try:
+        parsed = urlparse(connect_url)
+        
+        return {
+            "protocol": parsed.scheme,
+            "hostname": parsed.hostname,
+            "port": parsed.port or (5671 if parsed.scheme == 'amqps' else 5672),
+            "virtual_host": parsed.path.lstrip('/'),
+            "is_secure": parsed.scheme == 'amqps'
+        }
+    except Exception as e:
+        print(f"解析连接地址失败: {e}")
+        return None
+
+# 使用示例
+if __name__ == "__main__":
+    # 创建监控管理器
+    monitor = QueueMonitoringManager(token)
+    
+    # 单个队列监控
+    try:
+        metrics = monitor.get_queue_metrics(12345)
+        print(f"队列指标: {metrics}")
+        
+        # 解析连接信息
+        connection_info = parse_connect_url(metrics["connect_url"])
+        print(f"连接信息: {connection_info}")
+        
+    except Exception as e:
+        print(f"获取队列指标失败: {e}")
+    
+    # 生成健康报告
+    queue_ids = [12345, 54321, 67890]
+    report = monitor.generate_report(queue_ids)
+    
+    print(f"\n队列健康报告:")
+    print(f"总队列数: {report['total_queues']}")
+    print(f"健康队列: {report['healthy_queues']}")
+    print(f"异常队列: {report['unhealthy_queues']}")
+    print(f"总消息数: {report['total_messages']}")
+    
+    # 导出报告
+    report_file = monitor.export_report(report)
+    print(f"报告已导出到: {report_file}")
+```
+
+```curl cURL
+# 查询队列详情
+curl -X GET "https://iot-api.quectelcn.com/v2/quecrule/r1/openapi/queue/detail?queueId=12345" \
+  -H "Authorization: YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/x-www-form-urlencoded"
+
+# 查询多个队列详情
+QUEUE_IDS=(12345 54321 67890)
+TOKEN="YOUR_JWT_TOKEN"
+
+for queue_id in "${QUEUE_IDS[@]}"; do
+  echo "查询队列 $queue_id 详情:"
+  
+  curl -X GET "https://iot-api.quectelcn.com/v2/quecrule/r1/openapi/queue/detail?queueId=${queue_id}" \
+    -H "Authorization: ${TOKEN}" \
+    -H "Content-Type: application/x-www-form-urlencoded"
+  
+  echo -e "\n"
+done
+
+# 队列健康检查脚本
+#!/bin/bash
+TOKEN="YOUR_JWT_TOKEN"
+QUEUE_ID=12345
+
+# 获取队列详情
+response=$(curl -s -X GET "https://iot-api.quectelcn.com/v2/quecrule/r1/openapi/queue/detail?queueId=${QUEUE_ID}" \
+  -H "Authorization: ${TOKEN}" \
+  -H "Content-Type: application/x-www-form-urlencoded")
+
+# 解析响应
+echo "队列详情响应:"
+echo "$response" | jq .
+
+# 提取关键指标
+queue_name=$(echo "$response" | jq -r '.data.queueName')
+msg_num=$(echo "$response" | jq -r '.data.msgNum')
+consume_rate=$(echo "$response" | jq -r '.data.consumeRate')
+status=$(echo "$response" | jq -r '.data.status')
+
+echo "队列健康检查:"
+echo "队列名称: $queue_name"
+echo "消息数量: $msg_num"
+echo "消费速率: $consume_rate"
+echo "队列状态: $status"
+
+# 简单的健康检查
+if [ "$status" -eq 0 ]; then
+  echo "✓ 队列状态正常"
+else
+  echo "✗ 队列状态异常"
+fi
+
+if [ "$msg_num" -gt 5000 ]; then
+  echo "⚠️  消息积压过多: $msg_num"
+fi
+
+# 监控脚本
+#!/bin/bash
+TOKEN="YOUR_JWT_TOKEN"
+QUEUE_IDS=(12345 54321 67890)
+INTERVAL=60  # 监控间隔（秒）
+
+while true; do
+  echo "开始监控检查 - $(date)"
+  
+  for queue_id in "${QUEUE_IDS[@]}"; do
+    echo "检查队列: $queue_id"
+    
+    response=$(curl -s -X GET "https://iot-api.quectelcn.com/v2/quecrule/r1/openapi/queue/detail?queueId=${queue_id}" \
+      -H "Authorization: ${TOKEN}" \
+      -H "Content-Type: application/x-www-form-urlencoded")
+    
+    # 检查响应是否成功
+    if [ $? -eq 0 ]; then
+      msg_num=$(echo "$response" | jq -r '.data.msgNum')
+      consume_rate=$(echo "$response" | jq -r '.data.consumeRate')
+      
+      echo "  消息数: $msg_num, 消费速率: $consume_rate"
+      
+      # 告警检查
+      if [ "$msg_num" -gt 5000 ]; then
+        echo "  ⚠️  消息积压告警: $msg_num"
+      fi
+    else
+      echo "  ✗ 获取队列详情失败"
+    fi
+    
+    echo ""
+  done
+  
+  sleep $INTERVAL
+done
+```
+
+</CodeGroup>
+
+## 响应示例
+
+### 成功响应
+
+```json
+{
+  "code": 200,
+  "msg": "OK",
+  "data": {
+    "queueId": 6611,
+    "queueName": "a.1358403955870720.testQueue",
+    "queueDesc": "测试队列描述",
+    "createTime": 1730871805000,
+    "updateTime": null,
+    "status": 0,
+    "msgNum": 0,
+    "msgSize": "0KB",
+    "consumeRate": "0",
+    "connectUrl": "amqp://127.0.0.1:5672/quec-open"
+  }
+}
+```
+
+### 错误响应
+
+```json
+{
+  "code": 16002,
+  "msg": "The queue name does not exist"
+}
+```
+
+## 字段说明
+
+<AccordionGroup>
+  <Accordion title="基本信息字段">
+    - **queueId**: 队列唯一标识符
+    - **queueName**: 队列名称
+    - **queueDesc**: 队列描述信息
+    - **createTime**: 队列创建时间戳
+    - **updateTime**: 最后更新时间戳
+  </Accordion>
+  
+  <Accordion title="运行状态字段">
+    - **status**: 队列状态（0: 正常, 1: 异常）
+    - **msgNum**: 队列中未消费消息数量
+    - **msgSize**: 消息总大小（包含单位）
+    - **consumeRate**: 消息消费速率（消息/秒）
+  </Accordion>
+  
+  <Accordion title="连接配置字段">
+    - **connectUrl**: AMQP连接地址
+    - 格式: `amqp://hostname:port/virtualHost`
+    - 支持SSL连接: `amqps://hostname:port/virtualHost`
+  </Accordion>
+</AccordionGroup>
+
+## 状态码说明
+
+| 状态码 | 含义 | 说明 |
+|--------|------|------|
+| 0 | 正常 | 队列运行正常，可以接收和发送消息 |
+| 1 | 异常 | 队列存在问题，需要检查配置或连接 |
+| 2 | 暂停 | 队列暂时停止服务 |
+| 3 | 维护 | 队列正在维护中 |
+
+## 消息大小单位
+
+| 单位 | 含义 | 字节数 |
+|------|------|--------|
+| B | 字节 | 1 |
+| KB | 千字节 | 1,024 |
+| MB | 兆字节 | 1,048,576 |
+| GB | 吉字节 | 1,073,741,824 |
+
+## 监控指标
+
+<CardGroup cols={2}>
+  <Card title="消息积压" icon="inbox">
+    监控msgNum字段，设置告警阈值
+  </Card>
+  <Card title="消费速率" icon="tachometer-alt">
+    监控consumeRate字段，评估处理性能
+  </Card>
+  <Card title="消息大小" icon="weight">
+    监控msgSize字段，进行容量规划
+  </Card>
+  <Card title="状态健康" icon="heartbeat">
+    监控status字段，及时发现异常
+  </Card>
+</CardGroup>
+
+## 最佳实践
+
+<Steps>
+  <Step title="定期检查">
+    建立定期检查机制，监控队列健康状态
+  </Step>
+  <Step title="告警设置">
+    为关键指标设置合理的告警阈值
+  </Step>
+  <Step title="性能分析">
+    分析消费速率和消息积压趋势
+  </Step>
+  <Step title="容量规划">
+    根据消息大小和增长速度规划存储
+  </Step>
+</Steps>
+
+## 使用场景
+
+<CardGroup cols={2}>
+  <Card title="运维监控" icon="chart-line">
+    实时监控队列状态和性能指标
+  </Card>
+  <Card title="故障诊断" icon="stethoscope">
+    分析队列问题的根本原因
+  </Card>
+  <Card title="性能优化" icon="rocket">
+    优化消费者配置和处理逻辑
+  </Card>
+  <Card title="容量管理" icon="server">
+    规划队列容量和扩展策略
+  </Card>
+</CardGroup>
+
+## 错误处理
+
+| 错误码 | 描述 | 解决方案 |
+|--------|------|----------|
+| 16002 | 队列不存在 | 检查队列ID是否正确 |
+| 50000 | 服务异常 | 稍后重试或联系技术支持 |
+| 50005 | 参数错误 | 检查请求参数格式 |
+| 91004 | Token无效 | 检查认证token是否有效 |
+| 91005 | 权限不足 | 检查用户是否有队列查看权限 |
+
+## 相关接口
+
+<CardGroup cols={2}>
+  <Card title="队列列表" href="/api-reference/endpoint/queue-list">
+    查看所有队列的概览信息
+  </Card>
+  <Card title="队列创建" href="/api-reference/endpoint/queue-create">
+    创建新的消息队列
+  </Card>
+  <Card title="队列清理" href="/api-reference/endpoint/queue-clear">
+    清理队列中的消息
+  </Card>
+  <Card title="订阅管理" href="/api-reference/endpoint/subscription-list">
+    管理队列的消息订阅
+  </Card>
+</CardGroup>

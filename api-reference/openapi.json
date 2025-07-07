@@ -620,40 +620,6 @@
         }
       }
     },
-    "/v2/devicemgr/r1/openapi/product/gateway/getGatewayProductByChildDevice": {
-      "get": {
-        "tags": ["网关设备管理API"],
-        "summary": "通过子设备查找网关",
-        "description": "根据子设备的产品PK和设备DK，查找管理该子设备的网关设备信息",
-        "operationId": "getGatewayByChildDevice",
-        "parameters": [
-          {
-            "name": "childProductKey",
-            "in": "query",
-            "required": true,
-            "description": "子设备产品PK",
-            "schema": {"type": "string"}
-          },
-          {
-            "name": "childDeviceKey",
-            "in": "query",
-            "required": true,
-            "description": "子设备DK",
-            "schema": {"type": "string"}
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "网关信息查询成功",
-            "content": {
-              "application/json": {
-                "schema": {"$ref": "#/components/schemas/GatewayInfoResponse"}
-              }
-            }
-          }
-        }
-      }
-    },
     "/v2/devicemgr/r1/openapi/product/gateway/unbind": {
       "post": {
         "tags": ["网关设备管理API"],
@@ -1006,6 +972,468 @@
             "content": {
               "application/json": {
                 "schema": {"$ref": "#/components/schemas/ApiResponse"}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/binding/enterpriseapi/userDeviceList": {
+      "get": {
+        "tags": ["终端用户管理API"],
+        "summary": "查询用户设备列表",
+        "description": "查询指定用户绑定和接受分享的设备列表",
+        "operationId": "getUserDeviceList",
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "query",
+            "required": true,
+            "schema": {"type": "string"},
+            "description": "用户ID"
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {"type": "integer", "default": 1},
+            "description": "当前页，默认为第1页"
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "schema": {"type": "integer", "default": 10},
+            "description": "页大小，默认为10条"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "查询成功",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/UserDeviceListResponse"}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/enduser/enterpriseapi/userInfo": {
+      "get": {
+        "tags": ["终端用户管理API"],
+        "summary": "查询用户信息",
+        "description": "获取指定用户的详细信息",
+        "operationId": "getUserInfo",
+        "parameters": [
+          {
+            "name": "uid",
+            "in": "query",
+            "required": true,
+            "schema": {"type": "string"},
+            "description": "用户ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "查询成功",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/UserInfoResponse"}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/quecrule/r1/openapi/queue/detail": {
+      "get": {
+        "tags": ["队列管理API"],
+        "summary": "查询队列详情",
+        "description": "获取指定队列的详细信息和状态",
+        "operationId": "getQueueDetail",
+        "parameters": [
+          {
+            "name": "queueName",
+            "in": "query",
+            "required": true,
+            "schema": {"type": "string"},
+            "description": "队列名称"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "查询成功",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/QueueDetailResponse"}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/quecrule/r1/openapi/queue/clear": {
+      "post": {
+        "tags": ["队列管理API"],
+        "summary": "清空队列",
+        "description": "清空指定队列中的所有消息",
+        "operationId": "clearQueue",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["queueName"],
+                "properties": {
+                  "queueName": {"type": "string", "description": "队列名称"}
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "清空成功",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/ApiResponse"}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/quecrule/r1/openapi/queue/delete": {
+      "delete": {
+        "tags": ["队列管理API"],
+        "summary": "删除队列",
+        "description": "删除指定的消息队列",
+        "operationId": "deleteQueue",
+        "parameters": [
+          {
+            "name": "queueName",
+            "in": "query",
+            "required": true,
+            "schema": {"type": "string"},
+            "description": "队列名称"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "删除成功",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/ApiResponse"}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/quecrule/r1/openapi/subscribe/detail": {
+      "get": {
+        "tags": ["消息订阅管理API"],
+        "summary": "查询订阅详情",
+        "description": "获取指定订阅的详细配置信息",
+        "operationId": "getSubscriptionDetail",
+        "parameters": [
+          {
+            "name": "subscriptionId",
+            "in": "query",
+            "required": true,
+            "schema": {"type": "string"},
+            "description": "订阅ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "查询成功",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/SubscriptionDetailResponse"}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/quecrule/r1/openapi/subscribe/delete": {
+      "delete": {
+        "tags": ["消息订阅管理API"],
+        "summary": "删除订阅",
+        "description": "删除指定的消息订阅",
+        "operationId": "deleteSubscription",
+        "parameters": [
+          {
+            "name": "subscriptionId",
+            "in": "query",
+            "required": true,
+            "schema": {"type": "string"},
+            "description": "订阅ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "删除成功",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/ApiResponse"}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/devicemgr/r1/openapi/product/gateway/getGatewayProductByChildDevice": {
+      "get": {
+        "tags": ["网关设备管理API"],
+        "summary": "根据子设备查询所属网关",
+        "description": "根据子设备信息查询当前所属网关的详细信息",
+        "operationId": "getGatewayByChildDevice",
+        "parameters": [
+          {
+            "name": "productKey",
+            "in": "query",
+            "required": true,
+            "schema": {"type": "string"},
+            "description": "子设备产品PK"
+          },
+          {
+            "name": "deviceKey",
+            "in": "query",
+            "required": true,
+            "schema": {"type": "string"},
+            "description": "子设备DK"
+          },
+          {
+            "name": "language",
+            "in": "query",
+            "required": false,
+            "schema": {"type": "string", "enum": ["CN", "EN"], "default": "CN"},
+            "description": "语言设置"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "查询成功",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/GatewayProductResponse"}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/enduser/enterpriseapi/domainList": {
+      "get": {
+        "tags": ["终端用户管理API"],
+        "summary": "查询域名列表",
+        "description": "获取企业API可访问的域名列表",
+        "operationId": "getDomainList",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {"type": "integer", "default": 1},
+            "description": "当前页，默认为第1页"
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "schema": {"type": "integer", "default": 10},
+            "description": "页大小，默认为10条"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "查询成功",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/DomainListResponse"}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/enduser/enterpriseapi/domainUserList": {
+      "get": {
+        "tags": ["终端用户管理API"],
+        "summary": "查询域名下用户列表",
+        "description": "获取指定域名下的用户列表",
+        "operationId": "getDomainUserList",
+        "parameters": [
+          {
+            "name": "domain",
+            "in": "query",
+            "required": true,
+            "schema": {"type": "string"},
+            "description": "域名"
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": {"type": "integer", "default": 1},
+            "description": "当前页，默认为第1页"
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "required": false,
+            "schema": {"type": "integer", "default": 10},
+            "description": "页大小，默认为10条"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "查询成功",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/DomainUserListResponse"}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/enduser/enterpriseapi/getUserByDevice": {
+      "get": {
+        "tags": ["终端用户管理API"],
+        "summary": "根据设备查询用户",
+        "description": "根据设备信息查询绑定该设备的用户",
+        "operationId": "getUserByDevice",
+        "parameters": [
+          {
+            "name": "productKey",
+            "in": "query",
+            "required": true,
+            "schema": {"type": "string"},
+            "description": "产品PK"
+          },
+          {
+            "name": "deviceKey",
+            "in": "query",
+            "required": true,
+            "schema": {"type": "string"},
+            "description": "设备DK"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "查询成功",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/UserByDeviceResponse"}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/enduser/enterpriseapi/setUserStatus": {
+      "post": {
+        "tags": ["终端用户管理API"],
+        "summary": "设置用户状态",
+        "description": "设置指定用户的账号状态（启用/禁用）",
+        "operationId": "setUserStatus",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {"$ref": "#/components/schemas/SetUserStatusRequest"}
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "状态设置成功",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/ApiResponse"}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/enduser/enterpriseapi/verifyBindingCode": {
+      "post": {
+        "tags": ["终端用户管理API"],
+        "summary": "验证绑定码",
+        "description": "验证设备绑定码的有效性",
+        "operationId": "verifyBindingCode",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {"$ref": "#/components/schemas/VerifyBindingCodeRequest"}
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "验证成功",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/BindingCodeResponse"}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/quecrule/r1/openapi/subscribe/enduser": {
+      "post": {
+        "tags": ["消息订阅管理API"],
+        "summary": "创建终端用户订阅",
+        "description": "创建针对终端用户的消息订阅",
+        "operationId": "createEndUserSubscription",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {"$ref": "#/components/schemas/EndUserSubscriptionRequest"}
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "订阅创建成功",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/SubscriptionResponse"}
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v2/quecrule/r1/openapi/subscribe/update": {
+      "post": {
+        "tags": ["消息订阅管理API"],
+        "summary": "更新订阅配置",
+        "description": "更新现有消息订阅的配置信息",
+        "operationId": "updateSubscription",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {"$ref": "#/components/schemas/SubscriptionUpdateRequest"}
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "订阅更新成功",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/SubscriptionResponse"}
               }
             }
           }
@@ -1499,6 +1927,217 @@
         "properties": {
           "subscriptionId": {"type": "string", "description": "订阅规则ID"}
         }
+      },
+      "UserDeviceListResponse": {
+        "type": "object",
+        "properties": {
+          "code": {"type": "integer"},
+          "msg": {"type": "string"},
+          "data": {
+            "type": "object",
+            "properties": {
+              "total": {"type": "integer"},
+              "pageNum": {"type": "integer"},
+              "pageSize": {"type": "integer"},
+              "hasNextPage": {"type": "boolean"},
+              "list": {
+                "type": "array",
+                "items": {"$ref": "#/components/schemas/DeviceInfo"}
+              }
+            }
+          }
+        }
+      },
+      "UserInfoResponse": {
+        "type": "object",
+        "properties": {
+          "code": {"type": "integer"},
+          "msg": {"type": "string"},
+          "data": {"$ref": "#/components/schemas/UserInfo"}
+        }
+      },
+      "UserInfo": {
+        "type": "object",
+        "properties": {
+          "uid": {"type": "string", "description": "用户ID"},
+          "nikeName": {"type": "string", "description": "用户昵称"},
+          "phone": {"type": "string", "description": "手机号码"},
+          "email": {"type": "string", "description": "邮箱地址"},
+          "status": {"type": "integer", "description": "账号状态：0-禁用，1-正常"},
+          "headimg": {"type": "string", "description": "头像URL"},
+          "registerTime": {"type": "integer", "format": "int64", "description": "注册时间戳"},
+          "lastLoginTime": {"type": "integer", "format": "int64", "description": "最后登录时间戳"}
+        }
+      },
+      "QueueDetailResponse": {
+        "type": "object",
+        "properties": {
+          "code": {"type": "integer"},
+          "msg": {"type": "string"},
+          "data": {"$ref": "#/components/schemas/QueueDetailInfo"}
+        }
+      },
+      "QueueDetailInfo": {
+        "type": "object",
+        "properties": {
+          "queueId": {"type": "string", "description": "队列ID"},
+          "queueName": {"type": "string", "description": "队列名称"},
+          "queueDesc": {"type": "string", "description": "队列描述"},
+          "status": {"type": "string", "description": "队列状态"},
+          "messageCount": {"type": "integer", "description": "消息数量"},
+          "connectInfo": {"type": "object", "description": "连接信息"}
+        }
+      },
+      "SubscriptionDetailResponse": {
+        "type": "object",
+        "properties": {
+          "code": {"type": "integer"},
+          "msg": {"type": "string"},
+          "data": {"$ref": "#/components/schemas/SubscriptionDetailInfo"}
+        }
+      },
+      "SubscriptionDetailInfo": {
+        "type": "object",
+        "properties": {
+          "subscriptionId": {"type": "string", "description": "订阅ID"},
+          "subscriptionName": {"type": "string", "description": "订阅名称"},
+          "queueName": {"type": "string", "description": "队列名称"},
+          "type": {"type": "string", "description": "订阅类型"},
+          "status": {"type": "string", "description": "订阅状态"},
+          "messageType": {"type": "array", "items": {"type": "string"}, "description": "消息类型列表"},
+          "createTime": {"type": "string", "format": "date-time", "description": "创建时间"}
+        }
+      },
+      "GatewayProductInfo": {
+        "type": "object",
+        "properties": {
+          "productKey": {"type": "string", "description": "网关产品PK"},
+          "productName": {"type": "string", "description": "网关产品名称"},
+          "deviceKey": {"type": "string", "description": "网关设备DK"},
+          "deviceName": {"type": "string", "description": "网关设备名称"}
+        }
+      },
+      "GatewayProductResponse": {
+        "type": "object",
+        "properties": {
+          "code": {"type": "integer"},
+          "msg": {"type": "string"},
+          "data": {"$ref": "#/components/schemas/GatewayProductInfo"}
+        }
+      },
+      "DomainListResponse": {
+        "type": "object",
+        "properties": {
+          "code": {"type": "integer"},
+          "msg": {"type": "string"},
+          "data": {
+            "type": "object",
+            "properties": {
+              "total": {"type": "integer"},
+              "pageNum": {"type": "integer"},
+              "pageSize": {"type": "integer"},
+              "hasNextPage": {"type": "boolean"},
+              "list": {
+                "type": "array",
+                "items": {"$ref": "#/components/schemas/DomainInfo"}
+              }
+            }
+          }
+        }
+      },
+      "DomainInfo": {
+        "type": "object",
+        "properties": {
+          "domain": {"type": "string", "description": "域名"},
+          "description": {"type": "string", "description": "域名描述"},
+          "status": {"type": "integer", "description": "状态：0-禁用，1-启用"},
+          "createTime": {"type": "string", "format": "date-time", "description": "创建时间"}
+        }
+      },
+      "DomainUserListResponse": {
+        "type": "object",
+        "properties": {
+          "code": {"type": "integer"},
+          "msg": {"type": "string"},
+          "data": {
+            "type": "object",
+            "properties": {
+              "total": {"type": "integer"},
+              "pageNum": {"type": "integer"},
+              "pageSize": {"type": "integer"},
+              "hasNextPage": {"type": "boolean"},
+              "list": {
+                "type": "array",
+                "items": {"$ref": "#/components/schemas/UserInfo"}
+              }
+            }
+          }
+        }
+      },
+      "UserByDeviceResponse": {
+        "type": "object",
+        "properties": {
+          "code": {"type": "integer"},
+          "msg": {"type": "string"},
+          "data": {"$ref": "#/components/schemas/UserInfo"}
+        }
+      },
+      "SetUserStatusRequest": {
+        "type": "object",
+        "required": ["uid", "status"],
+        "properties": {
+          "uid": {"type": "string", "description": "用户ID"},
+          "status": {"type": "integer", "description": "状态：0-禁用，1-启用"}
+        }
+      },
+      "VerifyBindingCodeRequest": {
+        "type": "object",
+        "required": ["bindingCode"],
+        "properties": {
+          "bindingCode": {"type": "string", "description": "设备绑定码"},
+          "productKey": {"type": "string", "description": "产品PK（可选）"},
+          "deviceKey": {"type": "string", "description": "设备DK（可选）"}
+        }
+      },
+      "BindingCodeResponse": {
+        "type": "object",
+        "properties": {
+          "code": {"type": "integer"},
+          "msg": {"type": "string"},
+          "data": {
+            "type": "object",
+            "properties": {
+              "valid": {"type": "boolean", "description": "绑定码是否有效"},
+              "productKey": {"type": "string", "description": "产品PK"},
+              "deviceKey": {"type": "string", "description": "设备DK"},
+              "deviceName": {"type": "string", "description": "设备名称"},
+              "expireTime": {"type": "string", "format": "date-time", "description": "过期时间"}
+            }
+          }
+        }
+      },
+      "EndUserSubscriptionRequest": {
+        "type": "object",
+        "required": ["queueName", "subscriptionName", "uid", "eventTypes"],
+        "properties": {
+          "queueName": {"type": "string", "description": "队列名称"},
+          "subscriptionName": {"type": "string", "description": "订阅名称"},
+          "uid": {"type": "string", "description": "终端用户ID"},
+          "eventTypes": {"type": "array", "items": {"type": "string"}, "description": "事件类型列表"},
+          "deviceFilter": {"type": "object", "description": "设备过滤条件（可选）"}
+        }
+      },
+      "SubscriptionUpdateRequest": {
+        "type": "object",
+        "required": ["subscriptionId"],
+        "properties": {
+          "subscriptionId": {"type": "string", "description": "订阅ID"},
+          "subscriptionName": {"type": "string", "description": "订阅名称"},
+          "eventTypes": {"type": "array", "items": {"type": "string"}, "description": "事件类型列表"},
+          "productKeys": {"type": "array", "items": {"type": "string"}, "description": "产品PK列表"},
+          "deviceKeys": {"type": "array", "items": {"type": "string"}, "description": "设备DK列表"},
+          "status": {"type": "string", "enum": ["ACTIVE", "INACTIVE"], "description": "订阅状态"}
+        }
       }
     }
   },
@@ -1510,6 +2149,8 @@
     {"name": "设备上下行消息API", "description": "设备数据通信，包括属性设置、服务调用、透传数据等"},
     {"name": "网关设备管理API", "description": "网关设备和子设备的拓扑关系管理"},
     {"name": "数据查询API", "description": "设备历史数据和事件的查询功能"},
-    {"name": "消息订阅管理API", "description": "消息队列和订阅的创建、管理功能"}
+    {"name": "队列管理API", "description": "消息队列的创建、管理、监控功能"},
+    {"name": "消息订阅管理API", "description": "消息订阅的创建、管理功能"},
+    {"name": "终端用户管理API", "description": "终端用户信息和设备关系管理"}
   ]
 }

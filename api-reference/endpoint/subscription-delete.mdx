@@ -1,0 +1,394 @@
+---
+title: '删除订阅'
+openapi: 'DELETE /v2/quecrule/r1/openapi/subscribe/delete'
+---
+
+## 订阅删除管理
+
+删除指定的消息订阅规则。删除订阅后，将停止接收相关事件消息。此操作不可恢复，请谨慎使用。
+
+## 删除条件
+
+<AccordionGroup>
+  <Accordion title="删除前置条件">
+    - 订阅必须处于停止状态
+    - 确认订阅不再需要
+    - 具有相应的删除权限
+  </Accordion>
+  
+  <Accordion title="删除影响">
+    - 立即停止消息接收
+    - 清除订阅配置
+    - 释放相关资源
+  </Accordion>
+</AccordionGroup>
+
+## 代码示例
+
+<CodeGroup>
+
+```javascript JavaScript
+async function deleteSubscription(token, subscribeId) {
+  const response = await fetch(
+    `https://iot-api.quectelcn.com/v2/quecrule/r1/openapi/subscribe/delete?subscribeId=${subscribeId}`,
+    {
+      method: 'DELETE',
+      headers: {
+        'Authorization': token,
+        'Content-Type': 'application/x-www-form-urlencoded'
+      }
+    }
+  );
+  
+  return await response.json();
+}
+
+// 删除单个订阅
+const subscribeId = 12345;
+const result = await deleteSubscription(token, subscribeId);
+
+if (result.code === 200) {
+  console.log(`订阅 ${subscribeId} 删除成功`);
+} else {
+  console.error(`删除失败: ${result.msg}`);
+}
+
+// 批量删除订阅
+async function deleteMultipleSubscriptions(token, subscribeIds) {
+  const results = [];
+  
+  for (const subscribeId of subscribeIds) {
+    try {
+      const result = await deleteSubscription(token, subscribeId);
+      results.push({
+        subscribeId,
+        success: result.code === 200,
+        message: result.msg
+      });
+    } catch (error) {
+      results.push({
+        subscribeId,
+        success: false,
+        error: error.message
+      });
+    }
+  }
+  
+  return results;
+}
+
+const subscriptionsToDelete = [12345, 12346, 12347];
+const deleteResults = await deleteMultipleSubscriptions(token, subscriptionsToDelete);
+
+deleteResults.forEach(result => {
+  if (result.success) {
+    console.log(`✓ 订阅 ${result.subscribeId} 删除成功`);
+  } else {
+    console.log(`✗ 订阅 ${result.subscribeId} 删除失败: ${result.error || result.message}`);
+  }
+});
+
+// 订阅清理工具
+class SubscriptionCleaner {
+  constructor(token) {
+    this.token = token;
+  }
+  
+  async deleteSubscription(subscribeId) {
+    return await deleteSubscription(this.token, subscribeId);
+  }
+  
+  async deleteInactiveSubscriptions(subscriptionList) {
+    const inactiveSubscriptions = subscriptionList.filter(sub => 
+      sub.status === 'INACTIVE' || sub.status === 'ERROR'
+    );
+    
+    const subscribeIds = inactiveSubscriptions.map(sub => sub.subscribeId);
+    return await deleteMultipleSubscriptions(this.token, subscribeIds);
+  }
+  
+  async deleteByPattern(subscriptionList, namePattern) {
+    const matchingSubscriptions = subscriptionList.filter(sub => 
+      sub.subscribeName.includes(namePattern)
+    );
+    
+    const subscribeIds = matchingSubscriptions.map(sub => sub.subscribeId);
+    return await deleteMultipleSubscriptions(this.token, subscribeIds);
+  }
+  
+  async safeDelete(subscribeId, confirmCallback) {
+    // 安全删除，需要确认
+    const confirmed = await confirmCallback(subscribeId);
+    if (confirmed) {
+      return await this.deleteSubscription(subscribeId);
+    }
+    return { success: false, message: '用户取消删除' };
+  }
+}
+
+// 使用清理工具
+const cleaner = new SubscriptionCleaner(token);
+
+// 删除所有测试订阅
+const testSubscriptions = await cleaner.deleteByPattern(allSubscriptions, 'test');
+console.log(`删除了 ${testSubscriptions.length} 个测试订阅`);
+
+// 安全删除示例
+const confirmDelete = (subscribeId) => {
+  return new Promise((resolve) => {
+    // 在实际应用中，这里应该显示确认对话框
+    console.log(`确认删除订阅 ${subscribeId}? (y/n)`);
+    // 模拟用户确认
+    resolve(true);
+  });
+};
+
+const safeDeleteResult = await cleaner.safeDelete(12345, confirmDelete);
+```
+
+```python Python
+import requests
+
+def delete_subscription(token, subscribe_id):
+    """删除订阅"""
+    url = f"https://iot-api.quectelcn.com/v2/quecrule/r1/openapi/subscribe/delete"
+    
+    params = {
+        "subscribeId": subscribe_id
+    }
+    
+    headers = {
+        "Authorization": token,
+        "Content-Type": "application/x-www-form-urlencoded"
+    }
+    
+    response = requests.delete(url, params=params, headers=headers)
+    response.raise_for_status()
+    
+    return response.json()
+
+# 删除单个订阅
+subscribe_id = 12345
+result = delete_subscription(token, subscribe_id)
+
+if result['code'] == 200:
+    print(f"订阅 {subscribe_id} 删除成功")
+else:
+    print(f"删除失败: {result['msg']}")
+
+# 批量删除订阅
+def delete_multiple_subscriptions(token, subscribe_ids):
+    """批量删除订阅"""
+    results = []
+    
+    for subscribe_id in subscribe_ids:
+        try:
+            result = delete_subscription(token, subscribe_id)
+            results.append({
+                "subscribeId": subscribe_id,
+                "success": result['code'] == 200,
+                "message": result['msg']
+            })
+        except Exception as e:
+            results.append({
+                "subscribeId": subscribe_id,
+                "success": False,
+                "error": str(e)
+            })
+    
+    return results
+
+# 订阅清理器
+class SubscriptionCleaner:
+    def __init__(self, token):
+        self.token = token
+    
+    def delete_subscription(self, subscribe_id):
+        """删除单个订阅"""
+        return delete_subscription(self.token, subscribe_id)
+    
+    def delete_inactive_subscriptions(self, subscription_list):
+        """删除非活跃订阅"""
+        inactive_subscriptions = [
+            sub for sub in subscription_list 
+            if sub.get('status') in ['INACTIVE', 'ERROR']
+        ]
+        
+        subscribe_ids = [sub['subscribeId'] for sub in inactive_subscriptions]
+        return delete_multiple_subscriptions(self.token, subscribe_ids)
+    
+    def delete_by_pattern(self, subscription_list, name_pattern):
+        """按名称模式删除订阅"""
+        matching_subscriptions = [
+            sub for sub in subscription_list 
+            if name_pattern in sub.get('subscribeName', '')
+        ]
+        
+        subscribe_ids = [sub['subscribeId'] for sub in matching_subscriptions]
+        return delete_multiple_subscriptions(self.token, subscribe_ids)
+    
+    def delete_old_subscriptions(self, subscription_list, days_old=30):
+        """删除过期的订阅"""
+        from datetime import datetime, timedelta
+        
+        cutoff_date = datetime.now() - timedelta(days=days_old)
+        old_subscriptions = []
+        
+        for sub in subscription_list:
+            create_time = sub.get('createTime')
+            if create_time:
+                # 假设时间戳是毫秒
+                create_datetime = datetime.fromtimestamp(create_time / 1000)
+                if create_datetime < cutoff_date:
+                    old_subscriptions.append(sub)
+        
+        subscribe_ids = [sub['subscribeId'] for sub in old_subscriptions]
+        return delete_multiple_subscriptions(self.token, subscribe_ids)
+    
+    def safe_delete(self, subscribe_id, confirm_callback=None):
+        """安全删除，需要确认"""
+        if confirm_callback:
+            confirmed = confirm_callback(subscribe_id)
+            if not confirmed:
+                return {"success": False, "message": "用户取消删除"}
+        
+        return self.delete_subscription(subscribe_id)
+
+# 使用清理器
+cleaner = SubscriptionCleaner(token)
+
+# 删除所有测试订阅
+test_results = cleaner.delete_by_pattern(all_subscriptions, 'test')
+print(f"删除了 {len(test_results)} 个测试订阅")
+
+# 删除30天前的订阅
+old_results = cleaner.delete_old_subscriptions(all_subscriptions, 30)
+print(f"删除了 {len(old_results)} 个过期订阅")
+
+# 安全删除示例
+def confirm_delete(subscribe_id):
+    response = input(f"确认删除订阅 {subscribe_id}? (y/n): ")
+    return response.lower() == 'y'
+
+safe_result = cleaner.safe_delete(12345, confirm_delete)
+```
+
+```curl cURL
+# 删除指定订阅
+curl -X DELETE "https://iot-api.quectelcn.com/v2/quecrule/r1/openapi/subscribe/delete?subscribeId=12345" \
+  -H "Authorization: YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/x-www-form-urlencoded"
+
+# 删除另一个订阅
+curl -X DELETE "https://iot-api.quectelcn.com/v2/quecrule/r1/openapi/subscribe/delete?subscribeId=67890" \
+  -H "Authorization: YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/x-www-form-urlencoded"
+```
+
+</CodeGroup>
+
+## 响应示例
+
+### 删除成功响应
+
+```json
+{
+  "code": 200,
+  "msg": ""
+}
+```
+
+### 删除失败响应
+
+```json
+{
+  "code": 16011,
+  "msg": "The subscription rule does not exist"
+}
+```
+
+## 删除流程
+
+<Steps>
+  <Step title="停止订阅">
+    如果订阅正在运行，先停止订阅
+  </Step>
+  <Step title="确认删除">
+    确认不再需要此订阅
+  </Step>
+  <Step title="执行删除">
+    调用删除接口
+  </Step>
+  <Step title="验证结果">
+    检查删除结果和响应码
+  </Step>
+</Steps>
+
+## 删除策略
+
+<CardGroup cols={2}>
+  <Card title="按状态删除" icon="circle-check">
+    删除非活跃或错误状态的订阅
+  </Card>
+  <Card title="按时间删除" icon="calendar">
+    删除长时间未使用的订阅
+  </Card>
+  <Card title="按名称删除" icon="tag">
+    按命名模式批量删除测试订阅
+  </Card>
+  <Card title="手动确认" icon="hand-point-up">
+    重要订阅需要手动确认删除
+  </Card>
+</CardGroup>
+
+## 注意事项
+
+<Warning>
+订阅删除操作不可恢复，删除前请确保：
+- 订阅确实不再需要
+- 已备份重要的订阅配置
+- 没有应用依赖此订阅
+</Warning>
+
+<AccordionGroup>
+  <Accordion title="删除前检查">
+    - 确认订阅状态
+    - 检查依赖关系
+    - 备份配置信息
+  </Accordion>
+  
+  <Accordion title="删除后处理">
+    - 清理相关配置
+    - 更新监控系统
+    - 通知相关人员
+  </Accordion>
+</AccordionGroup>
+
+## 错误处理
+
+| 错误码 | 描述 | 解决方案 |
+|--------|------|----------|
+| 16011 | 订阅规则不存在 | 检查订阅ID是否正确 |
+| 16019 | 请先停止订阅 | 停止订阅后再执行删除 |
+| 50000 | 服务异常 | 稍后重试或联系技术支持 |
+| 50005 | 参数校验错误 | 检查subscribeId参数 |
+| 70060 | 权限不足 | 检查删除权限 |
+| 91004 | Token错误 | 检查Token有效性 |
+| 91005 | 无权限 | 联系管理员分配权限 |
+
+## 相关接口
+
+<CardGroup cols={2}>
+  <Card title="查询订阅详情" href="/api-reference/endpoint/subscription-detail">
+    删除前查看订阅详情
+  </Card>
+  <Card title="查询订阅列表" href="/api-reference/endpoint/subscription-list">
+    获取可删除的订阅列表
+  </Card>
+  <Card title="订阅控制" href="/api-reference/endpoint/subscription-control">
+    停止订阅后再删除
+  </Card>
+  <Card title="创建订阅" href="/api-reference/endpoint/subscription-create">
+    重新创建订阅
+  </Card>
+</CardGroup>

@@ -1,0 +1,546 @@
+---
+title: '修改订阅'
+openapi: 'POST /v2/quecrule/r1/openapi/subscribe/update'
+---
+
+## 订阅修改管理
+
+修改现有订阅的配置，包括消息类型、队列名称、订阅名称等。支持灵活的订阅配置更新，满足不同业务需求的变化。
+
+## 可修改配置
+
+<AccordionGroup>
+  <Accordion title="消息类型">
+    更新订阅的消息类型，支持多种设备和用户事件类型
+  </Accordion>
+  
+  <Accordion title="队列名称">
+    更改消息接收的队列名称
+  </Accordion>
+  
+  <Accordion title="订阅名称">
+    更新订阅的显示名称
+  </Accordion>
+  
+  <Accordion title="修改限制">
+    运行中的订阅不允许修改，需要先停止订阅
+  </Accordion>
+</AccordionGroup>
+
+## 消息类型支持
+
+<Tabs>
+  <Tab title="产品/设备级订阅">
+    **透传产品支持类型:**
+    - 1: 设备上下线事件
+    - 2: 设备和模组状态
+    - 3: 设备上行数据
+    - 4: 设备下行数据
+    - 5: 设备命令响应
+    - 12: 设备定位原始信息
+    - 13: 设备定位信息
+    - 14: 设备绑定变更信息
+    - 15: 设备信息变更
+    
+    **物模型产品支持类型:**
+    - 1: 设备上下线事件
+    - 2: 设备和模组状态
+    - 5: 设备命令响应
+    - 6: 物模型属性信息
+    - 7: 物模型事件上报-信息
+    - 8: 物模型事件上报-告警
+    - 9: 物模型事件上报-故障
+    - 10: 物模型服务调用日志
+    - 12: 设备定位原始信息
+    - 13: 设备定位信息
+    - 14: 设备绑定变更信息
+    - 15: 设备信息变更
+  </Tab>
+  
+  <Tab title="用户级订阅">
+    - 101: 产品信息变更
+    - 102: 设备信息变更
+    - 103: 物模型发布信息变更
+  </Tab>
+  
+  <Tab title="SaaS用户级订阅">
+    - 101: 产品信息变更
+    - 102: 设备信息变更
+    - 103: 物模型发布信息变更
+    - 104: 产品授权信息
+  </Tab>
+  
+  <Tab title="终端用户域级订阅">
+    - 201: 终端用户新增/删除/修改
+  </Tab>
+</Tabs>
+
+## 代码示例
+
+<CodeGroup>
+
+```javascript JavaScript
+async function updateSubscription(token, subscriptionConfig) {
+  const response = await fetch(
+    'https://iot-api.quectelcn.com/v2/quecrule/r1/openapi/subscribe/update',
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': token,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(subscriptionConfig)
+    }
+  );
+  
+  return await response.json();
+}
+
+// 修改订阅配置
+const updateConfig = {
+  subscribeId: 6169,
+  subscribeName: "更新后的订阅名称",
+  msgTypes: [1, 2, 6, 7, 8],
+  queueName: "updated-queue-name"
+};
+
+const result = await updateSubscription(token, updateConfig);
+
+if (result.code === 200) {
+  console.log('订阅更新成功');
+} else {
+  console.error(`更新失败: ${result.msg}`);
+}
+
+// 部分更新订阅
+async function updateSubscriptionPartial(token, subscribeId, updates) {
+  const currentConfig = {
+    subscribeId: subscribeId
+  };
+  
+  // 只更新提供的字段
+  Object.assign(currentConfig, updates);
+  
+  return await updateSubscription(token, currentConfig);
+}
+
+// 只更新消息类型
+await updateSubscriptionPartial(token, 6169, {
+  msgTypes: [1, 2, 3, 4, 5]
+});
+
+// 只更新订阅名称
+await updateSubscriptionPartial(token, 6169, {
+  subscribeName: "新的订阅名称"
+});
+
+// 批量更新订阅
+async function updateMultipleSubscriptions(token, updates) {
+  const results = [];
+  
+  for (const update of updates) {
+    try {
+      const result = await updateSubscription(token, update);
+      results.push({
+        subscribeId: update.subscribeId,
+        success: result.code === 200,
+        message: result.msg
+      });
+    } catch (error) {
+      results.push({
+        subscribeId: update.subscribeId,
+        success: false,
+        error: error.message
+      });
+    }
+  }
+  
+  return results;
+}
+
+// 订阅配置管理器
+class SubscriptionConfigManager {
+  constructor(token) {
+    this.token = token;
+  }
+  
+  async updateSubscription(subscribeId, updates) {
+    const config = {
+      subscribeId,
+      ...updates
+    };
+    
+    return await updateSubscription(this.token, config);
+  }
+  
+  async updateMessageTypes(subscribeId, msgTypes) {
+    return await this.updateSubscription(subscribeId, { msgTypes });
+  }
+  
+  async updateQueueName(subscribeId, queueName) {
+    return await this.updateSubscription(subscribeId, { queueName });
+  }
+  
+  async updateSubscriptionName(subscribeId, subscribeName) {
+    return await this.updateSubscription(subscribeId, { subscribeName });
+  }
+  
+  async enableAllDeviceEvents(subscribeId) {
+    const allDeviceEvents = [1, 2, 3, 4, 5, 12, 13, 14, 15];
+    return await this.updateMessageTypes(subscribeId, allDeviceEvents);
+  }
+  
+  async enableThingModelEvents(subscribeId) {
+    const thingModelEvents = [1, 2, 5, 6, 7, 8, 9, 10, 12, 13, 14, 15];
+    return await this.updateMessageTypes(subscribeId, thingModelEvents);
+  }
+  
+  async enableUserLevelEvents(subscribeId) {
+    const userLevelEvents = [101, 102, 103];
+    return await this.updateMessageTypes(subscribeId, userLevelEvents);
+  }
+  
+  async migrateToNewQueue(subscribeId, newQueueName) {
+    // 先检查队列是否存在
+    // 然后更新订阅配置
+    return await this.updateQueueName(subscribeId, newQueueName);
+  }
+  
+  async standardizeSubscriptionNames(subscriptions, nameTemplate) {
+    const updates = subscriptions.map(sub => ({
+      subscribeId: sub.subscribeId,
+      subscribeName: nameTemplate.replace('{id}', sub.subscribeId)
+    }));
+    
+    return await updateMultipleSubscriptions(this.token, updates);
+  }
+}
+
+// 使用配置管理器
+const configManager = new SubscriptionConfigManager(token);
+
+// 启用所有设备事件
+await configManager.enableAllDeviceEvents(6169);
+
+// 迁移到新队列
+await configManager.migrateToNewQueue(6169, 'new-message-queue');
+
+// 批量标准化订阅名称
+const subscriptions = [
+  { subscribeId: 6169 },
+  { subscribeId: 6170 },
+  { subscribeId: 6171 }
+];
+
+const standardizeResults = await configManager.standardizeSubscriptionNames(
+  subscriptions,
+  '标准订阅-{id}'
+);
+
+standardizeResults.forEach(result => {
+  if (result.success) {
+    console.log(`✓ 订阅 ${result.subscribeId} 名称标准化成功`);
+  } else {
+    console.log(`✗ 订阅 ${result.subscribeId} 名称标准化失败: ${result.error}`);
+  }
+});
+```
+
+```python Python
+import requests
+
+def update_subscription(token, subscription_config):
+    """修改订阅配置"""
+    url = "https://iot-api.quectelcn.com/v2/quecrule/r1/openapi/subscribe/update"
+    
+    headers = {
+        "Authorization": token,
+        "Content-Type": "application/json"
+    }
+    
+    response = requests.post(url, json=subscription_config, headers=headers)
+    response.raise_for_status()
+    
+    return response.json()
+
+# 修改订阅配置
+update_config = {
+    "subscribeId": 6169,
+    "subscribeName": "更新后的订阅名称",
+    "msgTypes": [1, 2, 6, 7, 8],
+    "queueName": "updated-queue-name"
+}
+
+result = update_subscription(token, update_config)
+
+if result['code'] == 200:
+    print('订阅更新成功')
+else:
+    print(f'更新失败: {result["msg"]}')
+
+# 订阅配置管理器
+class SubscriptionConfigManager:
+    def __init__(self, token):
+        self.token = token
+        self.message_type_groups = {
+            "all_device_events": [1, 2, 3, 4, 5, 12, 13, 14, 15],
+            "thing_model_events": [1, 2, 5, 6, 7, 8, 9, 10, 12, 13, 14, 15],
+            "user_level_events": [101, 102, 103],
+            "saas_user_events": [101, 102, 103, 104],
+            "enduser_domain_events": [201]
+        }
+    
+    def update_subscription(self, subscribe_id, updates):
+        """更新订阅配置"""
+        config = {
+            "subscribeId": subscribe_id,
+            **updates
+        }
+        return update_subscription(self.token, config)
+    
+    def update_message_types(self, subscribe_id, msg_types):
+        """更新消息类型"""
+        return self.update_subscription(subscribe_id, {"msgTypes": msg_types})
+    
+    def update_queue_name(self, subscribe_id, queue_name):
+        """更新队列名称"""
+        return self.update_subscription(subscribe_id, {"queueName": queue_name})
+    
+    def update_subscription_name(self, subscribe_id, subscribe_name):
+        """更新订阅名称"""
+        return self.update_subscription(subscribe_id, {"subscribeName": subscribe_name})
+    
+    def enable_message_type_group(self, subscribe_id, group_name):
+        """启用消息类型组"""
+        if group_name not in self.message_type_groups:
+            raise ValueError(f"未知的消息类型组: {group_name}")
+        
+        msg_types = self.message_type_groups[group_name]
+        return self.update_message_types(subscribe_id, msg_types)
+    
+    def migrate_to_new_queue(self, subscribe_id, new_queue_name):
+        """迁移到新队列"""
+        return self.update_queue_name(subscribe_id, new_queue_name)
+    
+    def update_multiple_subscriptions(self, updates):
+        """批量更新订阅"""
+        results = []
+        
+        for update in updates:
+            try:
+                result = update_subscription(self.token, update)
+                results.append({
+                    "subscribeId": update["subscribeId"],
+                    "success": result["code"] == 200,
+                    "message": result["msg"]
+                })
+            except Exception as e:
+                results.append({
+                    "subscribeId": update["subscribeId"],
+                    "success": False,
+                    "error": str(e)
+                })
+        
+        return results
+    
+    def standardize_subscription_names(self, subscriptions, name_template):
+        """标准化订阅名称"""
+        updates = [
+            {
+                "subscribeId": sub["subscribeId"],
+                "subscribeName": name_template.format(id=sub["subscribeId"])
+            }
+            for sub in subscriptions
+        ]
+        
+        return self.update_multiple_subscriptions(updates)
+    
+    def optimize_subscription_config(self, subscribe_id, optimization_type):
+        """优化订阅配置"""
+        optimizations = {
+            "performance": {
+                "msgTypes": [1, 2, 5]  # 只订阅关键事件
+            },
+            "comprehensive": {
+                "msgTypes": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 14, 15]  # 全面监控
+            },
+            "alerts_only": {
+                "msgTypes": [8, 9]  # 只订阅告警和故障
+            }
+        }
+        
+        if optimization_type not in optimizations:
+            raise ValueError(f"未知的优化类型: {optimization_type}")
+        
+        return self.update_subscription(subscribe_id, optimizations[optimization_type])
+
+# 使用配置管理器
+config_manager = SubscriptionConfigManager(token)
+
+# 启用物模型事件
+config_manager.enable_message_type_group(6169, "thing_model_events")
+
+# 迁移到新队列
+config_manager.migrate_to_new_queue(6169, "new-message-queue")
+
+# 优化订阅配置
+config_manager.optimize_subscription_config(6169, "performance")
+
+# 批量标准化订阅名称
+subscriptions = [
+    {"subscribeId": 6169},
+    {"subscribeId": 6170},
+    {"subscribeId": 6171}
+]
+
+results = config_manager.standardize_subscription_names(
+    subscriptions,
+    "标准订阅-{id}"
+)
+
+for result in results:
+    if result["success"]:
+        print(f"✓ 订阅 {result['subscribeId']} 名称标准化成功")
+    else:
+        print(f"✗ 订阅 {result['subscribeId']} 名称标准化失败: {result.get('error', result.get('message'))}")
+```
+
+```curl cURL
+# 修改订阅配置
+curl -X POST "https://iot-api.quectelcn.com/v2/quecrule/r1/openapi/subscribe/update" \
+  -H "Authorization: YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "subscribeId": 6169,
+    "subscribeName": "更新后的订阅名称",
+    "msgTypes": [1, 2, 6, 7, 8],
+    "queueName": "updated-queue-name"
+  }'
+
+# 只更新消息类型
+curl -X POST "https://iot-api.quectelcn.com/v2/quecrule/r1/openapi/subscribe/update" \
+  -H "Authorization: YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "subscribeId": 6169,
+    "msgTypes": [1, 2, 3, 4, 5]
+  }'
+
+# 只更新队列名称
+curl -X POST "https://iot-api.quectelcn.com/v2/quecrule/r1/openapi/subscribe/update" \
+  -H "Authorization: YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "subscribeId": 6169,
+    "queueName": "new-queue-name"
+  }'
+```
+
+</CodeGroup>
+
+## 响应示例
+
+### 更新成功响应
+
+```json
+{
+  "code": 200,
+  "msg": ""
+}
+```
+
+### 更新失败响应
+
+```json
+{
+  "code": 16022,
+  "msg": "The running subscription rule does not allow modification"
+}
+```
+
+## 更新策略
+
+<CardGroup cols={2}>
+  <Card title="逐步更新" icon="stairs">
+    先停止订阅，更新配置，再启动
+  </Card>
+  <Card title="配置验证" icon="check-circle">
+    更新前验证新配置的有效性
+  </Card>
+  <Card title="回滚准备" icon="history">
+    保留原配置用于可能的回滚
+  </Card>
+  <Card title="测试验证" icon="flask">
+    在测试环境验证新配置
+  </Card>
+</CardGroup>
+
+## 更新流程
+
+<Steps>
+  <Step title="停止订阅">
+    如果订阅正在运行，先停止订阅
+  </Step>
+  <Step title="准备配置">
+    准备新的订阅配置参数
+  </Step>
+  <Step title="执行更新">
+    调用更新接口
+  </Step>
+  <Step title="验证结果">
+    检查更新结果
+  </Step>
+  <Step title="重新启动">
+    启动更新后的订阅
+  </Step>
+</Steps>
+
+## 最佳实践
+
+<AccordionGroup>
+  <Accordion title="分阶段更新">
+    对于重要订阅，建议分阶段更新配置，避免一次性大幅修改
+  </Accordion>
+  
+  <Accordion title="配置备份">
+    更新前备份当前配置，以便出现问题时快速恢复
+  </Accordion>
+  
+  <Accordion title="监控验证">
+    更新后监控订阅状态，确保配置生效且工作正常
+  </Accordion>
+  
+  <Accordion title="文档记录">
+    记录配置变更的原因和时间，便于后续维护
+  </Accordion>
+</AccordionGroup>
+
+## 错误处理
+
+| 错误码 | 描述 | 解决方案 |
+|--------|------|----------|
+| 16002 | 队列名称不存在 | 检查队列名称是否正确，确保队列存在 |
+| 16022 | 运行中的订阅不允许修改 | 先停止订阅，修改后重新启动 |
+| 50000 | 服务异常 | 稍后重试或联系技术支持 |
+| 50004 | 参数为空 | 检查必填参数subscribeId |
+| 50005 | 参数校验错误 | 验证参数格式和取值范围 |
+| 70060 | 权限不足 | 检查修改权限 |
+| 91004 | Token错误 | 检查Token有效性 |
+| 91005 | 无权限 | 联系管理员分配权限 |
+
+## 相关接口
+
+<CardGroup cols={2}>
+  <Card title="查询订阅详情" href="/api-reference/endpoint/subscription-detail">
+    查看当前订阅配置
+  </Card>
+  <Card title="订阅控制" href="/api-reference/endpoint/subscription-control">
+    启动和停止订阅
+  </Card>
+  <Card title="删除订阅" href="/api-reference/endpoint/subscription-delete">
+    删除不需要的订阅
+  </Card>
+  <Card title="创建订阅" href="/api-reference/endpoint/subscription-create">
+    创建新的订阅
+  </Card>
+</CardGroup>

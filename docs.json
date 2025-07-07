@@ -35,12 +35,13 @@
         ]
       },
       {
-        "tab": "API接口文档",
+        "tab": "OpenAPI接口文档",
         "groups": [
           {
-            "group": "API文档",
+            "group": "前置条件",
             "pages": [
-              "api-reference/introduction"
+              "api-reference/introduction",
+              "api-reference/sdk-guide"
             ]
           },
           {
@@ -81,7 +82,8 @@
             "pages": [
               "api-reference/endpoint/gateway-subdevice-list",
               "api-reference/endpoint/gateway-lookup",
-              "api-reference/endpoint/gateway-unbind"
+              "api-reference/endpoint/gateway-unbind",
+              "api-reference/endpoint/gateway-get-product-by-child-device"
             ]
           },
           {
@@ -102,18 +104,53 @@
             ]
           },
           {
-            "group": "消息订阅管理API",
+            "group": "队列管理API",
             "pages": [
               "api-reference/endpoint/queue-create",
               "api-reference/endpoint/queue-list",
+              "api-reference/endpoint/queue-detail",
+              "api-reference/endpoint/queue-clear",
+              "api-reference/endpoint/queue-delete"
+            ]
+          },
+          {
+            "group": "消息订阅管理API",
+            "pages": [
               "api-reference/endpoint/subscription-create",
               "api-reference/endpoint/subscription-saas-create",
+              "api-reference/endpoint/subscription-enduser-create",
               "api-reference/endpoint/subscription-list",
+              "api-reference/endpoint/subscription-detail",
+              "api-reference/endpoint/subscription-update",
               "api-reference/endpoint/subscription-start",
-              "api-reference/endpoint/subscription-stop"
+              "api-reference/endpoint/subscription-stop",
+              "api-reference/endpoint/subscription-delete"
+            ]
+          },
+          {
+            "group": "终端用户管理API",
+            "pages": [
+              "api-reference/endpoint/enduser-device-list",
+              "api-reference/endpoint/enduser-user-info",
+              "api-reference/endpoint/enduser-domain-list",
+              "api-reference/endpoint/enduser-domain-user-list",
+              "api-reference/endpoint/enduser-get-user-by-device",
+              "api-reference/endpoint/enduser-set-user-status",
+              "api-reference/endpoint/enduser-verify-binding-code"
             ]
           }
         ]
+      },
+      {
+        "tab": "EndUserAPI接口文档",
+        "groups": [
+          {
+            "group": "API文档",
+            "pages": [
+              "api-reference/endUserIntroduction"
+            ]
+          }
+          ]
       }
     ]
   },

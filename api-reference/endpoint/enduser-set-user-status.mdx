@@ -1,0 +1,1027 @@
+---
+title: '设置用户状态'
+openapi: 'GET /v2/enduser/enterpriseapi/setUserStatus'
+---
+
+## 设置用户状态
+
+修改指定用户的账号状态，可以启用或禁用用户账号。此接口用于用户权限管理，确保只有授权用户能够访问系统资源。
+
+## 用户状态管理
+
+<CardGroup cols={2}>
+  <Card title="启用用户" icon="check-circle">
+    将用户状态设置为正常，允许登录和使用
+  </Card>
+  <Card title="禁用用户" icon="ban">
+    将用户状态设置为禁用，阻止登录和访问
+  </Card>
+</CardGroup>
+
+## 状态说明
+
+<Info>
+**用户状态类型**: 
+- **状态0**: 禁用状态，用户无法登录，已登录的会话将失效
+- **状态1**: 正常状态，用户可以正常登录和使用所有功能
+- **状态变更**: 状态变更会立即生效，影响用户的访问权限
+</Info>
+
+## 接口地址
+
+`GET /v2/enduser/enterpriseapi/setUserStatus`
+
+## 请求参数
+
+| 参数名 | 类型 | 必填 | 说明 |
+|--------|------|------|------|
+| uid | String | 是 | 用户ID |
+| status | Integer | 是 | 用户状态：0-禁用，1-正常 |
+
+## 代码示例
+
+<CodeGroup>
+
+```javascript JavaScript
+async function setUserStatus(token, uid, status) {
+  const response = await fetch(
+    `https://iot-api.quectelcn.com/v2/enduser/enterpriseapi/setUserStatus?uid=${uid}&status=${status}`,
+    {
+      method: 'GET',
+      headers: {
+        'Authorization': token,
+        'Content-Type': 'application/x-www-form-urlencoded'
+      }
+    }
+  );
+  
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  }
+  
+  return await response.json();
+}
+
+// 启用用户
+async function enableUser(token, uid) {
+  try {
+    const result = await setUserStatus(token, uid, 1);
+    console.log(`用户 ${uid} 已启用`);
+    return result;
+  } catch (error) {
+    console.error(`启用用户失败: ${error.message}`);
+    throw error;
+  }
+}
+
+// 禁用用户
+async function disableUser(token, uid) {
+  try {
+    const result = await setUserStatus(token, uid, 0);
+    console.log(`用户 ${uid} 已禁用`);
+    return result;
+  } catch (error) {
+    console.error(`禁用用户失败: ${error.message}`);
+    throw error;
+  }
+}
+
+// 批量设置用户状态
+async function batchSetUserStatus(token, userStatusMap) {
+  const results = [];
+  
+  for (const [uid, status] of Object.entries(userStatusMap)) {
+    try {
+      const result = await setUserStatus(token, uid, status);
+      results.push({
+        uid,
+        status,
+        success: true,
+        result
+      });
+      console.log(`用户 ${uid} 状态设置为 ${status === 1 ? '正常' : '禁用'}`);
+    } catch (error) {
+      results.push({
+        uid,
+        status,
+        success: false,
+        error: error.message
+      });
+      console.error(`设置用户 ${uid} 状态失败: ${error.message}`);
+    }
+  }
+  
+  return results;
+}
+
+// 用户状态管理工具
+class UserStatusManager {
+  constructor(token) {
+    this.token = token;
+  }
+  
+  async setStatus(uid, status) {
+    return await setUserStatus(this.token, uid, status);
+  }
+  
+  async enableUser(uid) {
+    return await this.setStatus(uid, 1);
+  }
+  
+  async disableUser(uid) {
+    return await this.setStatus(uid, 0);
+  }
+  
+  async toggleUserStatus(uid, currentStatus) {
+    const newStatus = currentStatus === 1 ? 0 : 1;
+    return await this.setStatus(uid, newStatus);
+  }
+  
+  async batchEnable(userIds) {
+    const statusMap = {};
+    userIds.forEach(uid => {
+      statusMap[uid] = 1;
+    });
+    return await batchSetUserStatus(this.token, statusMap);
+  }
+  
+  async batchDisable(userIds) {
+    const statusMap = {};
+    userIds.forEach(uid => {
+      statusMap[uid] = 0;
+    });
+    return await batchSetUserStatus(this.token, statusMap);
+  }
+}
+
+// 使用示例
+const userManager = new UserStatusManager(token);
+
+// 启用单个用户
+await userManager.enableUser('user123');
+
+// 禁用单个用户
+await userManager.disableUser('user456');
+
+// 批量启用用户
+const enableResults = await userManager.batchEnable(['user001', 'user002', 'user003']);
+console.log('批量启用结果:', enableResults);
+
+// 批量禁用用户
+const disableResults = await userManager.batchDisable(['user004', 'user005']);
+console.log('批量禁用结果:', disableResults);
+
+// 条件式用户状态管理
+async function conditionalUserManagement(token, users) {
+  const userManager = new UserStatusManager(token);
+  const results = {
+    enabled: [],
+    disabled: [],
+    errors: []
+  };
+  
+  for (const user of users) {
+    try {
+      // 根据用户最后登录时间决定是否禁用
+      const daysSinceLogin = user.lastLoginTime ? 
+        (Date.now() - user.lastLoginTime) / (1000 * 60 * 60 * 24) : 
+        Infinity;
+      
+      if (daysSinceLogin > 90) {
+        // 超过90天未登录，禁用用户
+        await userManager.disableUser(user.uid);
+        results.disabled.push(user.uid);
+      } else if (user.status === 0 && daysSinceLogin <= 7) {
+        // 最近7天有登录记录但被禁用，重新启用
+        await userManager.enableUser(user.uid);
+        results.enabled.push(user.uid);
+      }
+    } catch (error) {
+      results.errors.push({
+        uid: user.uid,
+        error: error.message
+      });
+    }
+  }
+  
+  return results;
+}
+
+// 安全的用户状态变更
+async function secureUserStatusChange(token, uid, newStatus, reason) {
+  const userManager = new UserStatusManager(token);
+  
+  try {
+    // 记录变更前的状态
+    const changeRecord = {
+      uid,
+      newStatus,
+      reason,
+      timestamp: new Date().toISOString(),
+      operator: 'system' // 可以传入操作者信息
+    };
+    
+    // 执行状态变更
+    const result = await userManager.setStatus(uid, newStatus);
+    
+    // 记录变更日志
+    console.log('用户状态变更记录:', changeRecord);
+    
+    return {
+      success: true,
+      result,
+      changeRecord
+    };
+  } catch (error) {
+    console.error('用户状态变更失败:', error);
+    
+    return {
+      success: false,
+      error: error.message,
+      changeRecord: {
+        uid,
+        newStatus,
+        reason,
+        timestamp: new Date().toISOString(),
+        error: error.message
+      }
+    };
+  }
+}
+
+// 安全变更示例
+await secureUserStatusChange(token, 'user123', 0, '用户违规操作');
+await secureUserStatusChange(token, 'user456', 1, '违规处理完成，恢复正常');
+```
+
+```python Python
+import requests
+import time
+from datetime import datetime, timedelta
+
+def set_user_status(token, uid, status):
+    """
+    设置用户状态
+    
+    Args:
+        token: JWT认证token
+        uid: 用户ID
+        status: 用户状态，0-禁用，1-正常
+    
+    Returns:
+        操作结果
+    """
+    url = "https://iot-api.quectelcn.com/v2/enduser/enterpriseapi/setUserStatus"
+    
+    params = {
+        "uid": uid,
+        "status": status
+    }
+    
+    headers = {
+        "Authorization": token,
+        "Content-Type": "application/x-www-form-urlencoded"
+    }
+    
+    response = requests.get(url, params=params, headers=headers)
+    response.raise_for_status()
+    
+    return response.json()
+
+def enable_user(token, uid):
+    """启用用户"""
+    try:
+        result = set_user_status(token, uid, 1)
+        print(f"用户 {uid} 已启用")
+        return result
+    except Exception as e:
+        print(f"启用用户失败: {e}")
+        raise
+
+def disable_user(token, uid):
+    """禁用用户"""
+    try:
+        result = set_user_status(token, uid, 0)
+        print(f"用户 {uid} 已禁用")
+        return result
+    except Exception as e:
+        print(f"禁用用户失败: {e}")
+        raise
+
+def batch_set_user_status(token, user_status_map):
+    """
+    批量设置用户状态
+    
+    Args:
+        token: JWT认证token
+        user_status_map: 用户状态映射 {uid: status}
+    
+    Returns:
+        操作结果列表
+    """
+    results = []
+    
+    for uid, status in user_status_map.items():
+        try:
+            result = set_user_status(token, uid, status)
+            results.append({
+                "uid": uid,
+                "status": status,
+                "success": True,
+                "result": result
+            })
+            status_text = "正常" if status == 1 else "禁用"
+            print(f"用户 {uid} 状态设置为 {status_text}")
+        except Exception as e:
+            results.append({
+                "uid": uid,
+                "status": status,
+                "success": False,
+                "error": str(e)
+            })
+            print(f"设置用户 {uid} 状态失败: {e}")
+    
+    return results
+
+# 用户状态管理类
+class UserStatusManager:
+    def __init__(self, token):
+        self.token = token
+    
+    def set_status(self, uid, status):
+        """设置用户状态"""
+        return set_user_status(self.token, uid, status)
+    
+    def enable_user(self, uid):
+        """启用用户"""
+        return self.set_status(uid, 1)
+    
+    def disable_user(self, uid):
+        """禁用用户"""
+        return self.set_status(uid, 0)
+    
+    def toggle_user_status(self, uid, current_status):
+        """切换用户状态"""
+        new_status = 0 if current_status == 1 else 1
+        return self.set_status(uid, new_status)
+    
+    def batch_enable(self, user_ids):
+        """批量启用用户"""
+        status_map = {uid: 1 for uid in user_ids}
+        return batch_set_user_status(self.token, status_map)
+    
+    def batch_disable(self, user_ids):
+        """批量禁用用户"""
+        status_map = {uid: 0 for uid in user_ids}
+        return batch_set_user_status(self.token, status_map)
+
+# 使用示例
+user_manager = UserStatusManager(token)
+
+# 启用单个用户
+user_manager.enable_user('user123')
+
+# 禁用单个用户
+user_manager.disable_user('user456')
+
+# 批量启用用户
+enable_results = user_manager.batch_enable(['user001', 'user002', 'user003'])
+print("批量启用结果:", enable_results)
+
+# 批量禁用用户
+disable_results = user_manager.batch_disable(['user004', 'user005'])
+print("批量禁用结果:", disable_results)
+
+# 条件式用户状态管理
+def conditional_user_management(token, users):
+    """
+    根据条件管理用户状态
+    
+    Args:
+        token: JWT认证token
+        users: 用户列表
+    
+    Returns:
+        管理结果
+    """
+    user_manager = UserStatusManager(token)
+    results = {
+        "enabled": [],
+        "disabled": [],
+        "errors": []
+    }
+    
+    for user in users:
+        try:
+            # 根据用户最后登录时间决定是否禁用
+            if user.get("lastLoginTime"):
+                last_login = datetime.fromtimestamp(user["lastLoginTime"] / 1000)
+                days_since_login = (datetime.now() - last_login).days
+            else:
+                days_since_login = float('inf')
+            
+            if days_since_login > 90:
+                # 超过90天未登录，禁用用户
+                user_manager.disable_user(user["uid"])
+                results["disabled"].append(user["uid"])
+            elif user["status"] == 0 and days_since_login <= 7:
+                # 最近7天有登录记录但被禁用，重新启用
+                user_manager.enable_user(user["uid"])
+                results["enabled"].append(user["uid"])
+        except Exception as e:
+            results["errors"].append({
+                "uid": user["uid"],
+                "error": str(e)
+            })
+    
+    return results
+
+# 安全的用户状态变更
+def secure_user_status_change(token, uid, new_status, reason, operator=None):
+    """
+    安全的用户状态变更
+    
+    Args:
+        token: JWT认证token
+        uid: 用户ID
+        new_status: 新状态
+        reason: 变更原因
+        operator: 操作者
+    
+    Returns:
+        变更结果
+    """
+    user_manager = UserStatusManager(token)
+    
+    try:
+        # 记录变更前的状态
+        change_record = {
+            "uid": uid,
+            "new_status": new_status,
+            "reason": reason,
+            "timestamp": datetime.now().isoformat(),
+            "operator": operator or "system"
+        }
+        
+        # 执行状态变更
+        result = user_manager.set_status(uid, new_status)
+        
+        # 记录变更日志
+        print("用户状态变更记录:", change_record)
+        
+        return {
+            "success": True,
+            "result": result,
+            "change_record": change_record
+        }
+    except Exception as e:
+        print(f"用户状态变更失败: {e}")
+        
+        return {
+            "success": False,
+            "error": str(e),
+            "change_record": {
+                "uid": uid,
+                "new_status": new_status,
+                "reason": reason,
+                "timestamp": datetime.now().isoformat(),
+                "error": str(e)
+            }
+        }
+
+# 安全变更示例
+secure_user_status_change(token, 'user123', 0, '用户违规操作', '管理员')
+secure_user_status_change(token, 'user456', 1, '违规处理完成，恢复正常', '管理员')
+
+# 定期用户状态检查
+def periodic_user_status_check(token, users):
+    """
+    定期用户状态检查
+    
+    Args:
+        token: JWT认证token
+        users: 用户列表
+    
+    Returns:
+        检查结果
+    """
+    user_manager = UserStatusManager(token)
+    check_results = {
+        "checked": 0,
+        "auto_disabled": [],
+        "auto_enabled": [],
+        "warnings": [],
+        "errors": []
+    }
+    
+    for user in users:
+        try:
+            check_results["checked"] += 1
+            
+            # 检查长期未登录用户
+            if user.get("lastLoginTime"):
+                last_login = datetime.fromtimestamp(user["lastLoginTime"] / 1000)
+                days_since_login = (datetime.now() - last_login).days
+                
+                if days_since_login > 180 and user["status"] == 1:
+                    # 超过180天未登录且状态为正常，自动禁用
+                    user_manager.disable_user(user["uid"])
+                    check_results["auto_disabled"].append({
+                        "uid": user["uid"],
+                        "reason": f"超过{days_since_login}天未登录"
+                    })
+                elif 90 <= days_since_login <= 180 and user["status"] == 1:
+                    # 90-180天未登录，发出警告
+                    check_results["warnings"].append({
+                        "uid": user["uid"],
+                        "warning": f"用户{days_since_login}天未登录，需要关注"
+                    })
+            else:
+                # 从未登录的用户
+                if user["status"] == 1:
+                    check_results["warnings"].append({
+                        "uid": user["uid"],
+                        "warning": "用户从未登录"
+                    })
+        except Exception as e:
+            check_results["errors"].append({
+                "uid": user["uid"],
+                "error": str(e)
+            })
+    
+    return check_results
+
+# 用户状态监控
+def monitor_user_status_changes(token, user_ids, interval=60):
+    """
+    监控用户状态变更
+    
+    Args:
+        token: JWT认证token
+        user_ids: 要监控的用户ID列表
+        interval: 监控间隔（秒）
+    """
+    print(f"开始监控 {len(user_ids)} 个用户的状态变更...")
+    
+    previous_statuses = {}
+    
+    while True:
+        try:
+            for uid in user_ids:
+                # 这里需要调用获取用户信息的接口来检查状态
+                # current_status = get_user_info(token, uid)["status"]
+                # 
+                # if uid in previous_statuses:
+                #     if previous_statuses[uid] != current_status:
+                #         status_text = "正常" if current_status == 1 else "禁用"
+                #         prev_status_text = "正常" if previous_statuses[uid] == 1 else "禁用"
+                #         print(f"用户 {uid} 状态变更: {prev_status_text} -> {status_text}")
+                # 
+                # previous_statuses[uid] = current_status
+                pass
+            
+            time.sleep(interval)
+        except KeyboardInterrupt:
+            print("监控已停止")
+            break
+        except Exception as e:
+            print(f"监控过程中发生错误: {e}")
+            time.sleep(interval)
+
+# 用户状态报告
+def generate_user_status_report(token, users):
+    """
+    生成用户状态报告
+    
+    Args:
+        token: JWT认证token
+        users: 用户列表
+    
+    Returns:
+        状态报告
+    """
+    report = {
+        "total_users": len(users),
+        "active_users": 0,
+        "disabled_users": 0,
+        "never_logged_in": 0,
+        "recent_logins": 0,
+        "long_time_no_login": 0,
+        "status_distribution": {},
+        "recommendations": []
+    }
+    
+    now = datetime.now()
+    
+    for user in users:
+        # 统计用户状态
+        status = user.get("status", 0)
+        if status == 1:
+            report["active_users"] += 1
+        else:
+            report["disabled_users"] += 1
+        
+        # 统计登录情况
+        if user.get("lastLoginTime"):
+            last_login = datetime.fromtimestamp(user["lastLoginTime"] / 1000)
+            days_since_login = (now - last_login).days
+            
+            if days_since_login <= 7:
+                report["recent_logins"] += 1
+            elif days_since_login > 90:
+                report["long_time_no_login"] += 1
+        else:
+            report["never_logged_in"] += 1
+    
+    # 生成建议
+    if report["long_time_no_login"] > 0:
+        report["recommendations"].append(
+            f"建议禁用 {report['long_time_no_login']} 个长期未登录用户"
+        )
+    
+    if report["never_logged_in"] > 0:
+        report["recommendations"].append(
+            f"建议关注 {report['never_logged_in']} 个从未登录用户"
+        )
+    
+    return report
+```
+
+```curl cURL
+# 启用用户
+curl -X GET "https://iot-api.quectelcn.com/v2/enduser/enterpriseapi/setUserStatus?uid=user123&status=1" \
+  -H "Authorization: YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/x-www-form-urlencoded"
+
+# 禁用用户
+curl -X GET "https://iot-api.quectelcn.com/v2/enduser/enterpriseapi/setUserStatus?uid=user456&status=0" \
+  -H "Authorization: YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/x-www-form-urlencoded"
+
+# 批量启用用户（需要多次调用）
+curl -X GET "https://iot-api.quectelcn.com/v2/enduser/enterpriseapi/setUserStatus?uid=user001&status=1" \
+  -H "Authorization: YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/x-www-form-urlencoded"
+
+curl -X GET "https://iot-api.quectelcn.com/v2/enduser/enterpriseapi/setUserStatus?uid=user002&status=1" \
+  -H "Authorization: YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/x-www-form-urlencoded"
+
+# 批量禁用用户（需要多次调用）
+curl -X GET "https://iot-api.quectelcn.com/v2/enduser/enterpriseapi/setUserStatus?uid=user003&status=0" \
+  -H "Authorization: YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/x-www-form-urlencoded"
+
+curl -X GET "https://iot-api.quectelcn.com/v2/enduser/enterpriseapi/setUserStatus?uid=user004&status=0" \
+  -H "Authorization: YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/x-www-form-urlencoded"
+```
+
+</CodeGroup>
+
+## 响应示例
+
+### 成功响应
+
+```json
+{
+  "code": 200,
+  "msg": "OK",
+  "data": {},
+  "extMsg": ""
+}
+```
+
+### 启用用户成功
+
+```json
+{
+  "code": 200,
+  "msg": "设置用户状态成功",
+  "data": {},
+  "extMsg": "用户已启用"
+}
+```
+
+### 禁用用户成功
+
+```json
+{
+  "code": 200,
+  "msg": "设置用户状态成功", 
+  "data": {},
+  "extMsg": "用户已禁用"
+}
+```
+
+## 状态管理流程
+
+### 用户状态变更流程
+
+<Tabs>
+  <Tab title="启用用户">
+    ```javascript
+    // 启用用户流程
+    async function enableUserFlow(token, uid, reason) {
+      try {
+        // 1. 检查用户当前状态
+        const userInfo = await getUserInfo(token, uid);
+        
+        if (userInfo.data.status === 1) {
+          console.log('用户已经是启用状态');
+          return { success: true, message: '用户已经是启用状态' };
+        }
+        
+        // 2. 执行启用操作
+        const result = await setUserStatus(token, uid, 1);
+        
+        // 3. 记录操作日志
+        console.log(`用户 ${uid} 已启用，原因: ${reason}`);
+        
+        return { success: true, result };
+      } catch (error) {
+        console.error('启用用户失败:', error);
+        return { success: false, error: error.message };
+      }
+    }
+    ```
+  </Tab>
+  
+  <Tab title="禁用用户">
+    ```javascript
+    // 禁用用户流程
+    async function disableUserFlow(token, uid, reason) {
+      try {
+        // 1. 检查用户当前状态
+        const userInfo = await getUserInfo(token, uid);
+        
+        if (userInfo.data.status === 0) {
+          console.log('用户已经是禁用状态');
+          return { success: true, message: '用户已经是禁用状态' };
+        }
+        
+        // 2. 执行禁用操作
+        const result = await setUserStatus(token, uid, 0);
+        
+        // 3. 记录操作日志
+        console.log(`用户 ${uid} 已禁用，原因: ${reason}`);
+        
+        return { success: true, result };
+      } catch (error) {
+        console.error('禁用用户失败:', error);
+        return { success: false, error: error.message };
+      }
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## 批量状态管理
+
+```javascript
+// 批量用户状态管理
+class BatchUserStatusManager {
+  constructor(token) {
+    this.token = token;
+    this.concurrentLimit = 5; // 并发限制
+  }
+  
+  async batchSetStatus(userStatusMap) {
+    const userIds = Object.keys(userStatusMap);
+    const chunks = this.chunkArray(userIds, this.concurrentLimit);
+    const results = [];
+    
+    for (const chunk of chunks) {
+      const promises = chunk.map(uid => 
+        this.setUserStatusWithRetry(uid, userStatusMap[uid])
+      );
+      
+      const chunkResults = await Promise.allSettled(promises);
+      results.push(...chunkResults);
+    }
+    
+    return this.processResults(results, userStatusMap);
+  }
+  
+  async setUserStatusWithRetry(uid, status, maxRetries = 3) {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const result = await setUserStatus(this.token, uid, status);
+        return { uid, status, success: true, result };
+      } catch (error) {
+        if (attempt === maxRetries) {
+          return { uid, status, success: false, error: error.message };
+        }
+        
+        // 指数退避
+        await this.sleep(Math.pow(2, attempt) * 1000);
+      }
+    }
+  }
+  
+  chunkArray(array, chunkSize) {
+    const chunks = [];
+    for (let i = 0; i < array.length; i += chunkSize) {
+      chunks.push(array.slice(i, i + chunkSize));
+    }
+    return chunks;
+  }
+  
+  processResults(results, userStatusMap) {
+    const summary = {
+      total: results.length,
+      success: 0,
+      failed: 0,
+      details: []
+    };
+    
+    results.forEach(result => {
+      if (result.status === 'fulfilled') {
+        const data = result.value;
+        if (data.success) {
+          summary.success++;
+        } else {
+          summary.failed++;
+        }
+        summary.details.push(data);
+      } else {
+        summary.failed++;
+        summary.details.push({
+          success: false,
+          error: result.reason
+        });
+      }
+    });
+    
+    return summary;
+  }
+  
+  sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+}
+
+// 使用示例
+const batchManager = new BatchUserStatusManager(token);
+
+// 批量设置用户状态
+const userStatusMap = {
+  'user001': 1,
+  'user002': 0,
+  'user003': 1,
+  'user004': 0
+};
+
+const batchResult = await batchManager.batchSetStatus(userStatusMap);
+console.log('批量操作结果:', batchResult);
+```
+
+## 审计和监控
+
+```javascript
+// 用户状态变更审计
+class UserStatusAudit {
+  constructor(token) {
+    this.token = token;
+    this.auditLog = [];
+  }
+  
+  async setUserStatusWithAudit(uid, status, reason, operator) {
+    const auditEntry = {
+      uid,
+      status,
+      reason,
+      operator,
+      timestamp: new Date().toISOString(),
+      success: false,
+      error: null
+    };
+    
+    try {
+      const result = await setUserStatus(this.token, uid, status);
+      auditEntry.success = true;
+      auditEntry.result = result;
+      
+      this.auditLog.push(auditEntry);
+      console.log('用户状态变更审计:', auditEntry);
+      
+      return result;
+    } catch (error) {
+      auditEntry.error = error.message;
+      this.auditLog.push(auditEntry);
+      
+      console.error('用户状态变更失败:', auditEntry);
+      throw error;
+    }
+  }
+  
+  getAuditLog() {
+    return this.auditLog;
+  }
+  
+  exportAuditLog() {
+    return JSON.stringify(this.auditLog, null, 2);
+  }
+  
+  getAuditSummary() {
+    const summary = {
+      total: this.auditLog.length,
+      success: 0,
+      failed: 0,
+      byOperator: {},
+      byStatus: { enable: 0, disable: 0 }
+    };
+    
+    this.auditLog.forEach(entry => {
+      if (entry.success) {
+        summary.success++;
+      } else {
+        summary.failed++;
+      }
+      
+      // 按操作者统计
+      if (!summary.byOperator[entry.operator]) {
+        summary.byOperator[entry.operator] = 0;
+      }
+      summary.byOperator[entry.operator]++;
+      
+      // 按状态变更统计
+      if (entry.status === 1) {
+        summary.byStatus.enable++;
+      } else {
+        summary.byStatus.disable++;
+      }
+    });
+    
+    return summary;
+  }
+}
+
+// 使用审计功能
+const auditor = new UserStatusAudit(token);
+
+// 带审计的用户状态变更
+await auditor.setUserStatusWithAudit('user123', 0, '用户违规', '管理员A');
+await auditor.setUserStatusWithAudit('user456', 1, '恢复正常', '管理员B');
+
+// 获取审计摘要
+const auditSummary = auditor.getAuditSummary();
+console.log('审计摘要:', auditSummary);
+```
+
+## 错误处理
+
+| 错误码 | 描述 | 解决方案 |
+|--------|------|----------|
+| 5036 | 秘钥验证失败 | 检查API秘钥配置 |
+| 5055 | 请输入秘钥 | 提供有效的API秘钥 |
+
+## 最佳实践
+
+<Warning>
+**状态变更注意事项**:
+- 禁用用户会立即生效，已登录的用户会被强制退出
+- 批量操作时建议限制并发数量，避免对系统造成过大压力
+- 重要的状态变更应该记录操作日志和原因
+</Warning>
+
+<Note>
+**操作建议**:
+- 在禁用用户前，建议先通知用户
+- 定期检查长期未登录用户，考虑自动禁用
+- 建立用户状态变更的审批流程
+</Note>
+
+## 使用场景
+
+<CardGroup cols={2}>
+  <Card title="用户违规处理" icon="ban">
+    对违规用户进行账号禁用处理
+  </Card>
+  <Card title="账号恢复" icon="user-check">
+    恢复被误禁或处理完毕的用户账号
+  </Card>
+  <Card title="批量管理" icon="users">
+    批量启用或禁用多个用户账号
+  </Card>
+  <Card title="自动化管理" icon="robot">
+    基于规则自动管理用户状态
+  </Card>
+</CardGroup>
+
+## 相关接口
+
+<CardGroup cols={2}>
+  <Card title="用户信息查询" href="/api-reference/endpoint/enduser-user-info">
+    获取用户详细信息和状态
+  </Card>
+  <Card title="域用户列表" href="/api-reference/endpoint/enduser-domain-user-list">
+    查询域内用户列表
+  </Card>
+  <Card title="用户设备列表" href="/api-reference/endpoint/enduser-device-list">
+    查询用户设备列表
+  </Card>
+  <Card title="绑定用户查询" href="/api-reference/endpoint/enduser-get-user-by-device">
+    查询绑定设备的用户
+  </Card>
+</CardGroup>

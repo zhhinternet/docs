@@ -212,25 +212,69 @@ curl -X POST "https://iot-api.quectelcn.com/v2/deviceshadow/r3/openapi/dm/writeD
 
 ```json
 {
+  "profile": {
+    "tslVersion": "1.2.0",
+    "productKey": "p12345",
+    "version": "20250324120550539"
+  },
   "properties": [
     {
+      "specs": [
+        {
+          "dataType": "BOOL",
+          "name": "开启",
+          "value": "true"
+        },
+        {
+          "dataType": "BOOL",
+          "name": "关闭",
+          "value": "false"
+        }
+      ],
       "code": "switch",
       "dataType": "BOOL",
-      "rwFlag": "RW",
-      "description": "设备电源开关"
+      "name": "开关",
+      "subType": "RW",
+      "id": 1,
+      "sort": 1,
+      "type": "PROPERTY",
+      "desc": "设备电源开关"
     },
     {
+      "specs": [
+        {
+          "dataType": "FLOAT",
+          "min": "-40.0",
+          "max": "85.0",
+          "unit": "°C"
+        }
+      ],
       "code": "temperature_threshold",
       "dataType": "FLOAT",
-      "rwFlag": "RW",
-      "unit": "°C",
-      "description": "温度警报阈值"
+      "name": "温度阈值",
+      "subType": "RW",
+      "id": 2,
+      "sort": 2,
+      "type": "PROPERTY",
+      "desc": "温度警报阈值"
     }
   ],
   "services": [
     {
+      "specs": [
+        {
+          "dataType": "INT",
+          "name": "延迟时间",
+          "min": "0",
+          "max": "60"
+        }
+      ],
       "code": "reboot",
-      "description": "重启设备"
+      "name": "重启设备",
+      "id": 101,
+      "sort": 1,
+      "type": "SERVICE",
+      "desc": "重启设备服务"
     }
   ]
 }

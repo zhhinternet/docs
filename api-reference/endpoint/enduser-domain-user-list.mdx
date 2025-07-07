@@ -1,0 +1,639 @@
+---
+title: '查询用户域中注册的用户列表'
+openapi: 'GET /v2/enduser/enterpriseapi/userDomainUserList'
+---
+
+## 查询用户域中注册的用户列表
+
+查询指定用户域中注册的用户列表，支持分页查询。此接口用于获取特定用户域下的所有用户信息，便于域级别的用户管理。
+
+## 用户域管理
+
+<CardGroup cols={2}>
+  <Card title="域内用户" icon="users">
+    查看域内所有注册用户
+  </Card>
+  <Card title="用户筛选" icon="filter">
+    基于域进行用户分类管理
+  </Card>
+</CardGroup>
+
+## 用户状态类型
+
+<Info>
+**用户状态说明**: 
+- **状态0**: 账号已禁用，无法登录使用
+- **状态1**: 账号正常，可正常使用所有功能
+- **登录方式**: 支持多种注册登录方式
+</Info>
+
+## 接口地址
+
+`GET /v2/enduser/enterpriseapi/userDomainUserList`
+
+## 请求参数
+
+| 参数名 | 类型 | 必填 | 说明 |
+|--------|------|------|------|
+| userDomain | String | 是 | 用户域名称 |
+| page | Integer | 否 | 当前页，默认为第1页 |
+| pageSize | Integer | 否 | 页大小，默认为10条 |
+
+## 代码示例
+
+<CodeGroup>
+
+```javascript JavaScript
+async function getDomainUserList(token, userDomain, page = 1, pageSize = 10) {
+  const response = await fetch(
+    `https://iot-api.quectelcn.com/v2/enduser/enterpriseapi/userDomainUserList?userDomain=${userDomain}&page=${page}&pageSize=${pageSize}`,
+    {
+      method: 'GET',
+      headers: {
+        'Authorization': token,
+        'Content-Type': 'application/x-www-form-urlencoded'
+      }
+    }
+  );
+  
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  }
+  
+  return await response.json();
+}
+
+// 获取域用户列表
+const domainUsers = await getDomainUserList(token, 'consumer_app', 1, 20);
+console.log('域用户列表:', domainUsers.data.list);
+
+// 分析用户信息
+domainUsers.data.list.forEach(user => {
+  console.log(`用户: ${user.nikeName} (${user.uid})`);
+  console.log(`手机: ${user.phone}`);
+  console.log(`邮箱: ${user.email}`);
+  console.log(`状态: ${user.status === 1 ? '正常' : '禁用'}`);
+  
+  // 检查第三方账号绑定
+  const thirdPartyAccounts = [];
+  if (user.wechatUnionId) thirdPartyAccounts.push('微信');
+  if (user.qqUserId) thirdPartyAccounts.push('QQ');
+  if (user.alipayUserId) thirdPartyAccounts.push('支付宝');
+  
+  if (thirdPartyAccounts.length > 0) {
+    console.log(`绑定账号: ${thirdPartyAccounts.join(', ')}`);
+  }
+});
+
+// 用户统计分析
+function analyzeDomainUsers(users) {
+  const analysis = {
+    total: users.length,
+    active: users.filter(u => u.status === 1).length,
+    disabled: users.filter(u => u.status === 0).length,
+    registrationMethods: {},
+    thirdPartyBindings: {
+      wechat: 0,
+      qq: 0,
+      alipay: 0,
+      apple: 0,
+      facebook: 0,
+      twitter: 0
+    },
+    locationStats: {}
+  };
+  
+  users.forEach(user => {
+    // 注册方式统计
+    const method = user.logonMode || 'unknown';
+    analysis.registrationMethods[method] = (analysis.registrationMethods[method] || 0) + 1;
+    
+    // 第三方账号绑定统计
+    if (user.wechatUnionId) analysis.thirdPartyBindings.wechat++;
+    if (user.qqUserId) analysis.thirdPartyBindings.qq++;
+    if (user.alipayUserId) analysis.thirdPartyBindings.alipay++;
+    if (user.appleUserId) analysis.thirdPartyBindings.apple++;
+    if (user.facebookUserId) analysis.thirdPartyBindings.facebook++;
+    if (user.twitterUserId) analysis.thirdPartyBindings.twitter++;
+    
+    // 地理位置统计
+    if (user.city) {
+      analysis.locationStats[user.city] = (analysis.locationStats[user.city] || 0) + 1;
+    }
+  });
+  
+  return analysis;
+}
+
+const userAnalysis = analyzeDomainUsers(domainUsers.data.list);
+console.log('用户分析:', userAnalysis);
+
+// 获取最近活跃用户
+function getRecentlyActiveUsers(users, days = 7) {
+  const cutoffTime = Date.now() - (days * 24 * 60 * 60 * 1000);
+  
+  return users.filter(user => {
+    return user.lastLoginTime && user.lastLoginTime > cutoffTime;
+  }).sort((a, b) => b.lastLoginTime - a.lastLoginTime);
+}
+
+const recentlyActive = getRecentlyActiveUsers(domainUsers.data.list);
+console.log(`最近${7}天活跃用户:`, recentlyActive.length);
+```
+
+```python Python
+import requests
+from datetime import datetime, timedelta
+from collections import defaultdict
+
+def get_domain_user_list(token, user_domain, page=1, page_size=10):
+    """
+    获取用户域中的用户列表
+    
+    Args:
+        token: JWT认证token
+        user_domain: 用户域名称
+        page: 页码，默认第1页
+        page_size: 每页数量，默认10条
+    
+    Returns:
+        用户列表数据
+    """
+    url = "https://iot-api.quectelcn.com/v2/enduser/enterpriseapi/userDomainUserList"
+    
+    params = {
+        "userDomain": user_domain,
+        "page": page,
+        "pageSize": page_size
+    }
+    
+    headers = {
+        "Authorization": token,
+        "Content-Type": "application/x-www-form-urlencoded"
+    }
+    
+    response = requests.get(url, params=params, headers=headers)
+    response.raise_for_status()
+    
+    return response.json()
+
+# 获取域用户列表
+domain_users = get_domain_user_list(token, "consumer_app", 1, 20)
+print("域用户列表:", domain_users["data"]["list"])
+
+# 用户信息分析
+for user in domain_users["data"]["list"]:
+    print(f"用户: {user['nikeName']} ({user['uid']})")
+    print(f"手机: {user['phone']}")
+    print(f"邮箱: {user['email']}")
+    print(f"状态: {'正常' if user['status'] == 1 else '禁用'}")
+    
+    # 地理位置信息
+    location_parts = []
+    if user.get('nationality'):
+        location_parts.append(user['nationality'])
+    if user.get('province'):
+        location_parts.append(user['province'])
+    if user.get('city'):
+        location_parts.append(user['city'])
+    
+    if location_parts:
+        print(f"位置: {' > '.join(location_parts)}")
+    
+    # 时间信息
+    if user.get('registerTime'):
+        reg_time = datetime.fromtimestamp(user['registerTime'] / 1000)
+        print(f"注册时间: {reg_time.strftime('%Y-%m-%d %H:%M:%S')}")
+    
+    if user.get('lastLoginTime'):
+        login_time = datetime.fromtimestamp(user['lastLoginTime'] / 1000)
+        print(f"最后登录: {login_time.strftime('%Y-%m-%d %H:%M:%S')}")
+    
+    print("-" * 50)
+
+# 获取所有域用户
+def get_all_domain_users(token, user_domain):
+    """获取域内所有用户"""
+    all_users = []
+    page = 1
+    page_size = 50
+    
+    while True:
+        result = get_domain_user_list(token, user_domain, page, page_size)
+        users = result["data"]["list"]
+        all_users.extend(users)
+        
+        if not result["data"]["hasNextPage"]:
+            break
+        page += 1
+    
+    return all_users
+
+# 用户数据分析
+def analyze_domain_users(users):
+    """分析域用户数据"""
+    analysis = {
+        "total_count": len(users),
+        "active_count": sum(1 for u in users if u["status"] == 1),
+        "disabled_count": sum(1 for u in users if u["status"] == 0),
+        "registration_methods": defaultdict(int),
+        "third_party_bindings": defaultdict(int),
+        "location_distribution": defaultdict(int),
+        "recent_registrations": [],
+        "recent_logins": []
+    }
+    
+    # 统计注册方式
+    for user in users:
+        method = user.get("logonMode", "unknown")
+        analysis["registration_methods"][method] += 1
+    
+    # 统计第三方账号绑定
+    for user in users:
+        if user.get("wechatUnionId"):
+            analysis["third_party_bindings"]["wechat"] += 1
+        if user.get("qqUserId"):
+            analysis["third_party_bindings"]["qq"] += 1
+        if user.get("alipayUserId"):
+            analysis["third_party_bindings"]["alipay"] += 1
+        if user.get("appleUserId"):
+            analysis["third_party_bindings"]["apple"] += 1
+        if user.get("facebookUserId"):
+            analysis["third_party_bindings"]["facebook"] += 1
+        if user.get("twitterUserId"):
+            analysis["third_party_bindings"]["twitter"] += 1
+    
+    # 统计地理位置分布
+    for user in users:
+        if user.get("city"):
+            analysis["location_distribution"][user["city"]] += 1
+    
+    # 获取最近注册的用户
+    recent_registered = sorted(
+        [u for u in users if u.get("registerTime")],
+        key=lambda x: x["registerTime"],
+        reverse=True
+    )[:5]
+    
+    analysis["recent_registrations"] = [
+        {
+            "uid": u["uid"],
+            "nikeName": u["nikeName"],
+            "phone": u["phone"],
+            "registerTime": datetime.fromtimestamp(u["registerTime"] / 1000).strftime('%Y-%m-%d'),
+            "status": "正常" if u["status"] == 1 else "禁用"
+        }
+        for u in recent_registered
+    ]
+    
+    # 获取最近登录的用户
+    recent_login = sorted(
+        [u for u in users if u.get("lastLoginTime")],
+        key=lambda x: x["lastLoginTime"],
+        reverse=True
+    )[:5]
+    
+    analysis["recent_logins"] = [
+        {
+            "uid": u["uid"],
+            "nikeName": u["nikeName"],
+            "phone": u["phone"],
+            "lastLoginTime": datetime.fromtimestamp(u["lastLoginTime"] / 1000).strftime('%Y-%m-%d %H:%M:%S'),
+            "status": "正常" if u["status"] == 1 else "禁用"
+        }
+        for u in recent_login
+    ]
+    
+    return analysis
+
+# 获取并分析域用户
+all_users = get_all_domain_users(token, "consumer_app")
+analysis = analyze_domain_users(all_users)
+
+print(f"\n域用户分析报告:")
+print(f"总用户数: {analysis['total_count']}")
+print(f"活跃用户数: {analysis['active_count']}")
+print(f"禁用用户数: {analysis['disabled_count']}")
+print(f"用户活跃率: {(analysis['active_count'] / analysis['total_count'] * 100):.1f}%")
+
+print("\n注册方式分布:")
+for method, count in analysis["registration_methods"].items():
+    print(f"  方式{method}: {count}个用户")
+
+print("\n第三方账号绑定情况:")
+for platform, count in analysis["third_party_bindings"].items():
+    if count > 0:
+        print(f"  {platform}: {count}个用户")
+
+print("\n地理位置分布(前5):")
+top_locations = sorted(
+    analysis["location_distribution"].items(),
+    key=lambda x: x[1],
+    reverse=True
+)[:5]
+for city, count in top_locations:
+    print(f"  {city}: {count}个用户")
+
+print("\n最近注册用户:")
+for user in analysis["recent_registrations"]:
+    print(f"  {user['nikeName']} ({user['phone']}) - {user['registerTime']} - {user['status']}")
+
+print("\n最近登录用户:")
+for user in analysis["recent_logins"]:
+    print(f"  {user['nikeName']} ({user['phone']}) - {user['lastLoginTime']} - {user['status']}")
+```
+
+```curl cURL
+# 获取域用户列表（基本查询）
+curl -X GET "https://iot-api.quectelcn.com/v2/enduser/enterpriseapi/userDomainUserList?userDomain=consumer_app&page=1&pageSize=10" \
+  -H "Authorization: YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/x-www-form-urlencoded"
+
+# 获取更多用户信息（大页面）
+curl -X GET "https://iot-api.quectelcn.com/v2/enduser/enterpriseapi/userDomainUserList?userDomain=enterprise_main&page=1&pageSize=50" \
+  -H "Authorization: YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/x-www-form-urlencoded"
+
+# 获取第二页用户列表
+curl -X GET "https://iot-api.quectelcn.com/v2/enduser/enterpriseapi/userDomainUserList?userDomain=consumer_app&page=2&pageSize=20" \
+  -H "Authorization: YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/x-www-form-urlencoded"
+```
+
+</CodeGroup>
+
+## 响应示例
+
+### 成功响应
+
+```json
+{
+  "code": 200,
+  "msg": "OK",
+  "data": {
+    "pageNum": 1,
+    "pageSize": 10,
+    "total": 156,
+    "pages": 16,
+    "hasNextPage": true,
+    "hasPreviousPage": false,
+    "isFirstPage": true,
+    "isLastPage": false,
+    "list": [
+      {
+        "uid": "user_001",
+        "nikeName": "张三",
+        "phone": "138****8888",
+        "email": "zhangsan@example.com",
+        "status": 1,
+        "headimg": "https://example.com/avatar/user_001.jpg",
+        "sex": "1",
+        "address": "北京市朝阳区某某街道123号",
+        "city": "北京市",
+        "province": "北京市",
+        "nationality": "中国",
+        "timezone": "Asia/Shanghai",
+        "lang": "zh-CN",
+        "signature": "热爱智能家居的技术爱好者",
+        "remark": "VIP用户",
+        "userDomain": "consumer_app",
+        "logonMode": 1,
+        "registerTime": 1673875200000,
+        "registerTimeTs": 1673875200000,
+        "lastLoginTime": 1702636800000,
+        "lastLoginTimeTs": 1702636800000,
+        "wechatUnionId": "unionid_12345",
+        "qqUserId": "qq_987654321",
+        "alipayUserId": "alipay_user_456"
+      },
+      {
+        "uid": "user_002",
+        "nikeName": "李四",
+        "phone": "139****9999",
+        "email": "lisi@example.com",
+        "status": 1,
+        "headimg": "https://example.com/avatar/user_002.jpg",
+        "sex": "2",
+        "address": "上海市浦东新区某某路456号",
+        "city": "上海市",
+        "province": "上海市",
+        "nationality": "中国",
+        "timezone": "Asia/Shanghai",
+        "lang": "zh-CN",
+        "signature": "智能生活从这里开始",
+        "remark": "普通用户",
+        "userDomain": "consumer_app",
+        "logonMode": 2,
+        "registerTime": 1673961600000,
+        "registerTimeTs": 1673961600000,
+        "lastLoginTime": 1702550400000,
+        "lastLoginTimeTs": 1702550400000,
+        "wechatUnionId": "unionid_67890",
+        "wechatMiniprogramUserId": "miniprogram_user_789"
+      }
+    ]
+  }
+}
+```
+
+## 用户信息字段说明
+
+### 基本信息
+
+| 字段 | 说明 | 示例 |
+|------|------|------|
+| uid | 用户唯一标识 | "user_001" |
+| nikeName | 用户昵称 | "张三" |
+| phone | 手机号码 | "138****8888" |
+| email | 邮箱地址 | "user@example.com" |
+| status | 账号状态 | 0-禁用, 1-正常 |
+| sex | 性别 | "1"-男, "2"-女, "0"-未知 |
+| userDomain | 所属用户域 | "consumer_app" |
+| logonMode | 注册方式 | 1-手机, 2-邮箱, 3-第三方 |
+
+### 地理位置信息
+
+<Tabs>
+  <Tab title="国内用户">
+    ```json
+    {
+      "nationality": "中国",
+      "province": "北京市",
+      "city": "北京市",
+      "address": "详细地址信息"
+    }
+    ```
+  </Tab>
+  
+  <Tab title="海外用户">
+    ```json
+    {
+      "nationality": "美国",
+      "province": "California",
+      "city": "San Francisco",
+      "address": "详细地址信息"
+    }
+    ```
+  </Tab>
+</Tabs>
+
+### 第三方账号绑定
+
+| 平台 | 字段名 | 说明 |
+|------|--------|------|
+| 微信 | wechatUnionId | 微信开放平台UnionID |
+| 微信小程序 | wechatMiniprogramUserId | 微信小程序用户ID |
+| 微信公众号 | wechatOffiaccountUserId | 微信公众号用户ID |
+| QQ | qqUserId | QQ开放平台用户ID |
+| 支付宝 | alipayUserId | 支付宝用户ID |
+| Apple | appleUserId | Apple ID |
+| Facebook | facebookUserId | Facebook用户ID |
+| Twitter | twitterUserId | Twitter用户ID |
+
+## 用户管理功能
+
+```javascript
+// 域用户管理工具类
+class DomainUserManager {
+  constructor(token) {
+    this.token = token;
+  }
+  
+  async getDomainUserList(userDomain, page = 1, pageSize = 10) {
+    return await getDomainUserList(this.token, userDomain, page, pageSize);
+  }
+  
+  // 按状态过滤用户
+  filterUsersByStatus(users, status) {
+    return users.filter(user => user.status === status);
+  }
+  
+  // 按注册方式过滤用户
+  filterUsersByRegistrationMethod(users, method) {
+    return users.filter(user => user.logonMode === method);
+  }
+  
+  // 按地理位置过滤用户
+  filterUsersByLocation(users, city) {
+    return users.filter(user => user.city === city);
+  }
+  
+  // 获取用户活跃度统计
+  getUserActivityStats(users) {
+    const now = Date.now();
+    const oneDay = 24 * 60 * 60 * 1000;
+    const oneWeek = 7 * oneDay;
+    const oneMonth = 30 * oneDay;
+    
+    return {
+      total: users.length,
+      activeToday: users.filter(u => u.lastLoginTime && (now - u.lastLoginTime) < oneDay).length,
+      activeThisWeek: users.filter(u => u.lastLoginTime && (now - u.lastLoginTime) < oneWeek).length,
+      activeThisMonth: users.filter(u => u.lastLoginTime && (now - u.lastLoginTime) < oneMonth).length,
+      neverLogin: users.filter(u => !u.lastLoginTime).length
+    };
+  }
+  
+  // 获取用户画像分析
+  getUserProfileAnalysis(users) {
+    const analysis = {
+      genderDistribution: { male: 0, female: 0, unknown: 0 },
+      locationDistribution: {},
+      thirdPartyBindingRate: 0,
+      averageBindingCount: 0
+    };
+    
+    let totalBindings = 0;
+    
+    users.forEach(user => {
+      // 性别分布
+      if (user.sex === '1') {
+        analysis.genderDistribution.male++;
+      } else if (user.sex === '2') {
+        analysis.genderDistribution.female++;
+      } else {
+        analysis.genderDistribution.unknown++;
+      }
+      
+      // 地理位置分布
+      if (user.city) {
+        analysis.locationDistribution[user.city] = 
+          (analysis.locationDistribution[user.city] || 0) + 1;
+      }
+      
+      // 第三方账号绑定统计
+      let bindingCount = 0;
+      if (user.wechatUnionId) bindingCount++;
+      if (user.qqUserId) bindingCount++;
+      if (user.alipayUserId) bindingCount++;
+      if (user.appleUserId) bindingCount++;
+      if (user.facebookUserId) bindingCount++;
+      if (user.twitterUserId) bindingCount++;
+      
+      totalBindings += bindingCount;
+      if (bindingCount > 0) {
+        analysis.thirdPartyBindingRate++;
+      }
+    });
+    
+    analysis.thirdPartyBindingRate = (analysis.thirdPartyBindingRate / users.length * 100).toFixed(1);
+    analysis.averageBindingCount = (totalBindings / users.length).toFixed(1);
+    
+    return analysis;
+  }
+}
+
+// 使用示例
+const userManager = new DomainUserManager(token);
+const domainUsers = await userManager.getDomainUserList('consumer_app');
+const activityStats = userManager.getUserActivityStats(domainUsers.data.list);
+const profileAnalysis = userManager.getUserProfileAnalysis(domainUsers.data.list);
+
+console.log('用户活跃度统计:', activityStats);
+console.log('用户画像分析:', profileAnalysis);
+```
+
+## 错误处理
+
+| 错误码 | 描述 | 解决方案 |
+|--------|------|----------|
+| 5015 | 用户域不存在 | 检查用户域名称是否正确 |
+| 5023 | 请输入用户域 | 提供有效的userDomain参数 |
+| 5032 | token验证失败 | 检查token有效性，重新获取token |
+| 5041 | 没有权限 | 检查SaaS应用域权限配置 |
+| 5106 | 请输入token | 提供有效的Authorization头 |
+| 5112 | 请输入企业ID | 检查企业ID配置 |
+
+## 使用场景
+
+<CardGroup cols={2}>
+  <Card title="域用户管理" icon="users">
+    查看和管理域内所有用户
+  </Card>
+  <Card title="用户统计" icon="chart-bar">
+    分析用户分布和活跃度
+  </Card>
+  <Card title="权限控制" icon="shield">
+    基于域进行用户权限管理
+  </Card>
+  <Card title="用户画像" icon="user-circle">
+    分析用户特征和行为模式
+  </Card>
+</CardGroup>
+
+## 相关接口
+
+<CardGroup cols={2}>
+  <Card title="查询用户域列表" href="/api-reference/endpoint/enduser-domain-list">
+    获取所有用户域列表
+  </Card>
+  <Card title="用户信息查询" href="/api-reference/endpoint/enduser-user-info">
+    获取用户详细信息
+  </Card>
+  <Card title="设置用户状态" href="/api-reference/endpoint/enduser-set-user-status">
+    修改用户状态
+  </Card>
+  <Card title="用户设备列表" href="/api-reference/endpoint/enduser-device-list">
+    查询用户设备列表
+  </Card>
+</CardGroup>

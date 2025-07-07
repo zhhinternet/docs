@@ -1,0 +1,596 @@
+---
+title: '查询订阅详情'
+openapi: 'GET /v2/quecrule/r1/openapi/subscribe/detail'
+---
+
+## 订阅详情查询
+
+获取指定订阅的详细信息，包括订阅配置、状态、创建时间、消息类型等完整信息。用于监控和管理订阅状态。
+
+## 详情信息
+
+<AccordionGroup>
+  <Accordion title="基本信息">
+    订阅ID、名称、创建时间、修改时间、状态等
+  </Accordion>
+  
+  <Accordion title="配置信息">
+    数据级别、消息类型、队列信息、产品/设备信息
+  </Accordion>
+  
+  <Accordion title="状态信息">
+    当前订阅状态、用户信息等
+  </Accordion>
+</AccordionGroup>
+
+## 代码示例
+
+<CodeGroup>
+
+```javascript JavaScript
+async function getSubscriptionDetail(token, subscribeId) {
+  const response = await fetch(
+    `https://iot-api.quectelcn.com/v2/quecrule/r1/openapi/subscribe/detail?subscribeId=${subscribeId}`,
+    {
+      headers: {
+        'Authorization': token,
+        'Content-Type': 'application/x-www-form-urlencoded'
+      }
+    }
+  );
+  
+  return await response.json();
+}
+
+// 查询单个订阅详情
+const subscribeId = 6169;
+const detail = await getSubscriptionDetail(token, subscribeId);
+
+if (detail.code === 200) {
+  const subscription = detail.data;
+  console.log(`订阅名称: ${subscription.subscribeName}`);
+  console.log(`订阅状态: ${subscription.status}`);
+  console.log(`队列名称: ${subscription.queueName}`);
+  console.log(`消息类型: ${subscription.msgType}`);
+  console.log(`创建时间: ${new Date(subscription.createTime).toLocaleString()}`);
+} else {
+  console.error(`查询失败: ${detail.msg}`);
+}
+
+// 批量查询订阅详情
+async function getMultipleSubscriptionDetails(token, subscribeIds) {
+  const details = [];
+  
+  for (const subscribeId of subscribeIds) {
+    try {
+      const detail = await getSubscriptionDetail(token, subscribeId);
+      if (detail.code === 200) {
+        details.push({
+          subscribeId,
+          success: true,
+          data: detail.data
+        });
+      } else {
+        details.push({
+          subscribeId,
+          success: false,
+          error: detail.msg
+        });
+      }
+    } catch (error) {
+      details.push({
+        subscribeId,
+        success: false,
+        error: error.message
+      });
+    }
+  }
+  
+  return details;
+}
+
+// 订阅详情分析器
+class SubscriptionAnalyzer {
+  constructor(token) {
+    this.token = token;
+  }
+  
+  async getSubscriptionDetail(subscribeId) {
+    return await getSubscriptionDetail(this.token, subscribeId);
+  }
+  
+  async analyzeSubscription(subscribeId) {
+    const detail = await this.getSubscriptionDetail(subscribeId);
+    
+    if (detail.code !== 200) {
+      return { error: detail.msg };
+    }
+    
+    const subscription = detail.data;
+    const analysis = {
+      subscribeId: subscription.subscribeId,
+      subscribeName: subscription.subscribeName,
+      status: subscription.status,
+      dataLevel: this.getDataLevelName(subscription.dataLevel),
+      messageTypes: this.parseMessageTypes(subscription.msgType),
+      queueInfo: {
+        queueId: subscription.queueId,
+        queueName: subscription.queueName
+      },
+      productInfo: subscription.productKey ? {
+        productKey: subscription.productKey,
+        productName: subscription.productName
+      } : null,
+      deviceInfo: subscription.deviceKey ? {
+        deviceKey: subscription.deviceKey,
+        deviceName: subscription.deviceName
+      } : null,
+      endUserDomain: subscription.endUserDomain,
+      timestamps: {
+        created: new Date(subscription.createTime).toISOString(),
+        updated: new Date(subscription.updateTime).toISOString()
+      },
+      userId: subscription.userId
+    };
+    
+    return analysis;
+  }
+  
+  getDataLevelName(dataLevel) {
+    const levels = {
+      1: '产品级',
+      2: '设备级',
+      4: '企业用户级',
+      5: '终端用户域级'
+    };
+    return levels[dataLevel] || '未知';
+  }
+  
+  parseMessageTypes(msgTypeString) {
+    if (!msgTypeString) return [];
+    
+    const types = msgTypeString.split(',').map(t => parseInt(t.trim()));
+    const typeNames = {
+      1: '设备上下线事件',
+      2: '设备和模组状态',
+      3: '设备上行数据',
+      4: '设备下行数据',
+      5: '设备命令响应',
+      6: '物模型属性信息',
+      7: '物模型事件上报-信息',
+      8: '物模型事件上报-告警',
+      9: '物模型事件上报-故障',
+      10: '物模型服务调用日志',
+      12: '设备定位原始信息',
+      13: '设备定位信息',
+      14: '设备绑定变更信息',
+      15: '设备信息变更',
+      101: '产品信息变更',
+      102: '设备信息变更',
+      103: '物模型发布信息变更',
+      104: '产品授权信息',
+      201: '终端用户新增/删除/修改'
+    };
+    
+    return types.map(type => ({
+      code: type,
+      name: typeNames[type] || '未知类型'
+    }));
+  }
+  
+  async compareSubscriptions(subscribeIds) {
+    const details = await getMultipleSubscriptionDetails(this.token, subscribeIds);
+    const comparison = {
+      total: details.length,
+      successful: details.filter(d => d.success).length,
+      failed: details.filter(d => !d.success).length,
+      subscriptions: details.map(d => d.success ? this.analyzeSubscriptionData(d.data) : d)
+    };
+    
+    return comparison;
+  }
+  
+  analyzeSubscriptionData(data) {
+    return {
+      subscribeId: data.subscribeId,
+      subscribeName: data.subscribeName,
+      status: data.status,
+      dataLevel: this.getDataLevelName(data.dataLevel),
+      messageTypes: this.parseMessageTypes(data.msgType),
+      queueName: data.queueName,
+      productName: data.productName,
+      deviceName: data.deviceName,
+      endUserDomain: data.endUserDomain
+    };
+  }
+}
+
+// 使用分析器
+const analyzer = new SubscriptionAnalyzer(token);
+
+// 分析单个订阅
+const analysis = await analyzer.analyzeSubscription(6169);
+console.log('订阅分析结果:', analysis);
+
+// 比较多个订阅
+const comparison = await analyzer.compareSubscriptions([6169, 6170, 6171]);
+console.log('订阅比较结果:', comparison);
+```
+
+```python Python
+import requests
+from datetime import datetime
+
+def get_subscription_detail(token, subscribe_id):
+    """查询订阅详情"""
+    url = "https://iot-api.quectelcn.com/v2/quecrule/r1/openapi/subscribe/detail"
+    
+    params = {
+        "subscribeId": subscribe_id
+    }
+    
+    headers = {
+        "Authorization": token,
+        "Content-Type": "application/x-www-form-urlencoded"
+    }
+    
+    response = requests.get(url, params=params, headers=headers)
+    response.raise_for_status()
+    
+    return response.json()
+
+# 查询单个订阅详情
+subscribe_id = 6169
+detail = get_subscription_detail(token, subscribe_id)
+
+if detail['code'] == 200:
+    subscription = detail['data']
+    print(f"订阅名称: {subscription['subscribeName']}")
+    print(f"订阅状态: {subscription['status']}")
+    print(f"队列名称: {subscription['queueName']}")
+    print(f"消息类型: {subscription['msgType']}")
+    print(f"创建时间: {datetime.fromtimestamp(subscription['createTime']/1000)}")
+else:
+    print(f"查询失败: {detail['msg']}")
+
+# 订阅详情分析器
+class SubscriptionAnalyzer:
+    def __init__(self, token):
+        self.token = token
+        self.data_level_names = {
+            1: '产品级',
+            2: '设备级',
+            4: '企业用户级',
+            5: '终端用户域级'
+        }
+        self.message_type_names = {
+            1: '设备上下线事件',
+            2: '设备和模组状态',
+            3: '设备上行数据',
+            4: '设备下行数据',
+            5: '设备命令响应',
+            6: '物模型属性信息',
+            7: '物模型事件上报-信息',
+            8: '物模型事件上报-告警',
+            9: '物模型事件上报-故障',
+            10: '物模型服务调用日志',
+            12: '设备定位原始信息',
+            13: '设备定位信息',
+            14: '设备绑定变更信息',
+            15: '设备信息变更',
+            101: '产品信息变更',
+            102: '设备信息变更',
+            103: '物模型发布信息变更',
+            104: '产品授权信息',
+            201: '终端用户新增/删除/修改'
+        }
+    
+    def get_subscription_detail(self, subscribe_id):
+        """获取订阅详情"""
+        return get_subscription_detail(self.token, subscribe_id)
+    
+    def analyze_subscription(self, subscribe_id):
+        """分析订阅详情"""
+        detail = self.get_subscription_detail(subscribe_id)
+        
+        if detail['code'] != 200:
+            return {"error": detail['msg']}
+        
+        subscription = detail['data']
+        
+        # 解析消息类型
+        msg_types = []
+        if subscription.get('msgType'):
+            types = [int(t.strip()) for t in subscription['msgType'].split(',')]
+            msg_types = [
+                {
+                    "code": t,
+                    "name": self.message_type_names.get(t, '未知类型')
+                }
+                for t in types
+            ]
+        
+        analysis = {
+            "subscribeId": subscription['subscribeId'],
+            "subscribeName": subscription['subscribeName'],
+            "status": subscription['status'],
+            "dataLevel": {
+                "code": subscription['dataLevel'],
+                "name": self.data_level_names.get(subscription['dataLevel'], '未知')
+            },
+            "messageTypes": msg_types,
+            "queueInfo": {
+                "queueId": subscription['queueId'],
+                "queueName": subscription['queueName']
+            },
+            "productInfo": {
+                "productKey": subscription.get('productKey'),
+                "productName": subscription.get('productName')
+            } if subscription.get('productKey') else None,
+            "deviceInfo": {
+                "deviceKey": subscription.get('deviceKey'),
+                "deviceName": subscription.get('deviceName')
+            } if subscription.get('deviceKey') else None,
+            "endUserDomain": subscription.get('endUserDomain'),
+            "timestamps": {
+                "created": datetime.fromtimestamp(subscription['createTime']/1000).isoformat(),
+                "updated": datetime.fromtimestamp(subscription['updateTime']/1000).isoformat()
+            },
+            "userId": subscription['userId']
+        }
+        
+        return analysis
+    
+    def get_multiple_subscription_details(self, subscribe_ids):
+        """批量获取订阅详情"""
+        details = []
+        
+        for subscribe_id in subscribe_ids:
+            try:
+                detail = self.get_subscription_detail(subscribe_id)
+                if detail['code'] == 200:
+                    details.append({
+                        "subscribeId": subscribe_id,
+                        "success": True,
+                        "data": detail['data']
+                    })
+                else:
+                    details.append({
+                        "subscribeId": subscribe_id,
+                        "success": False,
+                        "error": detail['msg']
+                    })
+            except Exception as e:
+                details.append({
+                    "subscribeId": subscribe_id,
+                    "success": False,
+                    "error": str(e)
+                })
+        
+        return details
+    
+    def generate_report(self, subscribe_ids):
+        """生成订阅报告"""
+        details = self.get_multiple_subscription_details(subscribe_ids)
+        
+        report = {
+            "total": len(details),
+            "successful": sum(1 for d in details if d['success']),
+            "failed": sum(1 for d in details if not d['success']),
+            "subscriptions": []
+        }
+        
+        for detail in details:
+            if detail['success']:
+                analysis = self.analyze_subscription_data(detail['data'])
+                report['subscriptions'].append(analysis)
+            else:
+                report['subscriptions'].append({
+                    "subscribeId": detail['subscribeId'],
+                    "error": detail['error']
+                })
+        
+        return report
+    
+    def analyze_subscription_data(self, data):
+        """分析订阅数据"""
+        msg_types = []
+        if data.get('msgType'):
+            types = [int(t.strip()) for t in data['msgType'].split(',')]
+            msg_types = [
+                {
+                    "code": t,
+                    "name": self.message_type_names.get(t, '未知类型')
+                }
+                for t in types
+            ]
+        
+        return {
+            "subscribeId": data['subscribeId'],
+            "subscribeName": data['subscribeName'],
+            "status": data['status'],
+            "dataLevel": self.data_level_names.get(data['dataLevel'], '未知'),
+            "messageTypes": msg_types,
+            "queueName": data['queueName'],
+            "productName": data.get('productName'),
+            "deviceName": data.get('deviceName'),
+            "endUserDomain": data.get('endUserDomain'),
+            "createdAt": datetime.fromtimestamp(data['createTime']/1000).isoformat(),
+            "updatedAt": datetime.fromtimestamp(data['updateTime']/1000).isoformat()
+        }
+
+# 使用分析器
+analyzer = SubscriptionAnalyzer(token)
+
+# 分析单个订阅
+analysis = analyzer.analyze_subscription(6169)
+print("订阅分析结果:", analysis)
+
+# 生成多个订阅的报告
+report = analyzer.generate_report([6169, 6170, 6171])
+print("订阅报告:", report)
+```
+
+```curl cURL
+# 查询订阅详情
+curl -X GET "https://iot-api.quectelcn.com/v2/quecrule/r1/openapi/subscribe/detail?subscribeId=6169" \
+  -H "Authorization: YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/x-www-form-urlencoded"
+
+# 查询另一个订阅详情
+curl -X GET "https://iot-api.quectelcn.com/v2/quecrule/r1/openapi/subscribe/detail?subscribeId=6170" \
+  -H "Authorization: YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/x-www-form-urlencoded"
+```
+
+</CodeGroup>
+
+## 响应示例
+
+### 成功响应
+
+```json
+{
+  "code": 200,
+  "msg": "",
+  "data": {
+    "subscribeId": 6169,
+    "subscribeName": "subscribeName01",
+    "dataLevel": 1,
+    "msgType": "1,2,12,13,14,15",
+    "queueId": 6611,
+    "queueName": "a.1358403955870720.testQueue",
+    "userId": 1358403955870720,
+    "productName": "ProductName01",
+    "productKey": "PK0001",
+    "deviceKey": null,
+    "deviceName": null,
+    "endUserDomain": null,
+    "status": 1,
+    "createTime": 1730871813000,
+    "updateTime": 1730871813000
+  }
+}
+```
+
+### 错误响应
+
+```json
+{
+  "code": 16011,
+  "msg": "The subscription rule does not exist",
+  "data": null
+}
+```
+
+## 详情字段说明
+
+<AccordionGroup>
+  <Accordion title="subscribeId">
+    订阅唯一标识符
+  </Accordion>
+  
+  <Accordion title="subscribeName">
+    订阅名称，用户自定义
+  </Accordion>
+  
+  <Accordion title="dataLevel">
+    数据级别：1-产品级，2-设备级，4-企业用户级，5-终端用户域级
+  </Accordion>
+  
+  <Accordion title="msgType">
+    消息类型列表，逗号分隔
+  </Accordion>
+  
+  <Accordion title="queueId & queueName">
+    关联的消息队列ID和名称
+  </Accordion>
+  
+  <Accordion title="status">
+    订阅状态：1-活跃，0-非活跃
+  </Accordion>
+  
+  <Accordion title="createTime & updateTime">
+    创建时间和最后更新时间（时间戳）
+  </Accordion>
+</AccordionGroup>
+
+## 消息类型解析
+
+<Tabs>
+  <Tab title="设备事件">
+    - **1**: 设备上下线事件
+    - **2**: 设备和模组状态
+    - **3**: 设备上行数据
+    - **4**: 设备下行数据
+    - **5**: 设备命令响应
+  </Tab>
+  
+  <Tab title="物模型事件">
+    - **6**: 物模型属性信息
+    - **7**: 物模型事件上报-信息
+    - **8**: 物模型事件上报-告警
+    - **9**: 物模型事件上报-故障
+    - **10**: 物模型服务调用日志
+  </Tab>
+  
+  <Tab title="定位和绑定">
+    - **12**: 设备定位原始信息
+    - **13**: 设备定位信息
+    - **14**: 设备绑定变更信息
+    - **15**: 设备信息变更
+  </Tab>
+  
+  <Tab title="用户级事件">
+    - **101**: 产品信息变更
+    - **102**: 设备信息变更
+    - **103**: 物模型发布信息变更
+    - **104**: 产品授权信息
+    - **201**: 终端用户新增/删除/修改
+  </Tab>
+</Tabs>
+
+## 最佳实践
+
+<CardGroup cols={2}>
+  <Card title="定期检查" icon="clock">
+    定期查询订阅详情，监控订阅状态
+  </Card>
+  <Card title="配置验证" icon="check-circle">
+    验证订阅配置是否符合预期
+  </Card>
+  <Card title="性能分析" icon="chart-line">
+    分析订阅的消息处理性能
+  </Card>
+  <Card title="故障排查" icon="bug">
+    通过详情信息排查订阅问题
+  </Card>
+</CardGroup>
+
+## 错误处理
+
+| 错误码 | 描述 | 解决方案 |
+|--------|------|----------|
+| 16011 | 订阅规则不存在 | 检查订阅ID是否正确 |
+| 50000 | 服务异常 | 稍后重试或联系技术支持 |
+| 50005 | 参数校验错误 | 检查subscribeId参数格式 |
+| 70060 | 权限不足 | 检查查询权限 |
+| 91004 | Token错误 | 检查Token有效性 |
+| 91005 | 无权限 | 联系管理员分配权限 |
+
+## 相关接口
+
+<CardGroup cols={2}>
+  <Card title="查询订阅列表" href="/api-reference/endpoint/subscription-list">
+    获取所有订阅列表
+  </Card>
+  <Card title="修改订阅" href="/api-reference/endpoint/subscription-update">
+    更新订阅配置
+  </Card>
+  <Card title="删除订阅" href="/api-reference/endpoint/subscription-delete">
+    删除订阅
+  </Card>
+  <Card title="订阅控制" href="/api-reference/endpoint/subscription-control">
+    启动和停止订阅
+  </Card>
+</CardGroup>

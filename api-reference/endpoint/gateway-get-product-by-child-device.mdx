@@ -1,0 +1,562 @@
+---
+title: '根据子设备查询所属网关'
+openapi: 'GET /v2/devicemgr/r1/openapi/product/gateway/getGatewayProductByChildDevice'
+---
+
+## 根据子设备查询所属网关
+
+根据子设备信息查询当前所属网关的详细信息。此接口仅返回子设备当前连接的网关设备信息，用于网关拓扑管理和设备关系维护。
+
+## 网关架构
+
+<CardGroup cols={3}>
+  <Card title="网关设备" icon="router">
+    主控设备，负责子设备接入和数据转发
+  </Card>
+  <Card title="子设备" icon="microchip">
+    通过网关连接到云平台的终端设备
+  </Card>
+  <Card title="拓扑关系" icon="sitemap">
+    动态的父子设备连接关系
+  </Card>
+</CardGroup>
+
+## 设备连接状态
+
+<Info>
+**实时连接**: 此接口仅返回子设备当前实际连接的网关信息，历史连接关系不会返回。
+</Info>
+
+<Warning>
+**连接要求**: 子设备必须当前连接到网关才能查询到网关信息，离线或未连接状态下不会返回数据。
+</Warning>
+
+## 接口地址
+
+`GET /v2/devicemgr/r1/openapi/product/gateway/getGatewayProductByChildDevice`
+
+## 请求参数
+
+| 参数名 | 类型 | 必填 | 说明 |
+|--------|------|------|------|
+| productKey | String | 是 | 子设备产品PK |
+| deviceKey | String | 是 | 子设备DK |
+| language | String | 否 | 语言设置：CN/EN（默认CN） |
+
+## 代码示例
+
+<CodeGroup>
+
+```javascript JavaScript
+async function getGatewayByChildDevice(token, productKey, deviceKey, language = 'CN') {
+  const response = await fetch(
+    `https://iot-api.quectelcn.com/v2/devicemgr/r1/openapi/product/gateway/getGatewayProductByChildDevice?productKey=${productKey}&deviceKey=${deviceKey}&language=${language}`,
+    {
+      method: 'GET',
+      headers: {
+        'Authorization': token,
+        'Content-Type': 'application/x-www-form-urlencoded'
+      }
+    }
+  );
+  
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  }
+  
+  return await response.json();
+}
+
+// 查询子设备所属网关
+const gatewayInfo = await getGatewayByChildDevice(token, 'p12345', 'd67890');
+console.log('网关信息:', gatewayInfo.data);
+
+// 检查连接状态
+if (gatewayInfo.data) {
+  console.log(`子设备 ${deviceKey} 已连接到网关:`);
+  console.log(`- 网关产品: ${gatewayInfo.data.productName} (${gatewayInfo.data.productKey})`);
+  console.log(`- 网关设备: ${gatewayInfo.data.deviceName} (${gatewayInfo.data.deviceKey})`);
+} else {
+  console.log('子设备当前未连接到任何网关');
+}
+
+// 批量查询子设备网关信息
+async function batchGetGatewayInfo(token, childDevices) {
+  const results = [];
+  
+  for (const device of childDevices) {
+    try {
+      const gatewayInfo = await getGatewayByChildDevice(
+        token, 
+        device.productKey, 
+        device.deviceKey
+      );
+      
+      results.push({
+        childDevice: device,
+        gateway: gatewayInfo.data,
+        connected: !!gatewayInfo.data,
+        success: true
+      });
+    } catch (error) {
+      results.push({
+        childDevice: device,
+        gateway: null,
+        connected: false,
+        success: false,
+        error: error.message
+      });
+    }
+  }
+  
+  return results;
+}
+
+// 使用示例
+const childDevices = [
+  { productKey: 'p12345', deviceKey: 'd67890' },
+  { productKey: 'p12345', deviceKey: 'd67891' },
+  { productKey: 'p12346', deviceKey: 'd67892' }
+];
+
+const gatewayResults = await batchGetGatewayInfo(token, childDevices);
+
+// 分析连接状态
+const connectedDevices = gatewayResults.filter(r => r.connected);
+const disconnectedDevices = gatewayResults.filter(r => !r.connected);
+
+console.log(`已连接设备: ${connectedDevices.length}/${gatewayResults.length}`);
+console.log(`未连接设备: ${disconnectedDevices.length}/${gatewayResults.length}`);
+
+// 按网关分组
+const devicesByGateway = {};
+connectedDevices.forEach(result => {
+  const gatewayKey = result.gateway.deviceKey;
+  if (!devicesByGateway[gatewayKey]) {
+    devicesByGateway[gatewayKey] = {
+      gateway: result.gateway,
+      children: []
+    };
+  }
+  devicesByGateway[gatewayKey].children.push(result.childDevice);
+});
+
+console.log('网关拓扑结构:', devicesByGateway);
+```
+
+```python Python
+import requests
+
+def get_gateway_by_child_device(token, product_key, device_key, language="CN"):
+    """
+    根据子设备查询所属网关
+    
+    Args:
+        token: JWT认证token
+        product_key: 子设备产品PK
+        device_key: 子设备DK
+        language: 语言设置，CN或EN
+    
+    Returns:
+        网关设备信息
+    """
+    url = "https://iot-api.quectelcn.com/v2/devicemgr/r1/openapi/product/gateway/getGatewayProductByChildDevice"
+    
+    params = {
+        "productKey": product_key,
+        "deviceKey": device_key,
+        "language": language
+    }
+    
+    headers = {
+        "Authorization": token,
+        "Content-Type": "application/x-www-form-urlencoded"
+    }
+    
+    response = requests.get(url, params=params, headers=headers)
+    response.raise_for_status()
+    
+    return response.json()
+
+# 查询子设备网关信息
+gateway_info = get_gateway_by_child_device(token, "p12345", "d67890")
+
+if gateway_info["data"]:
+    gateway = gateway_info["data"]
+    print(f"子设备已连接到网关:")
+    print(f"  网关产品: {gateway['productName']} ({gateway['productKey']})")
+    print(f"  网关设备: {gateway['deviceName']} ({gateway['deviceKey']})")
+else:
+    print("子设备当前未连接到任何网关")
+
+# 网关拓扑分析类
+class GatewayTopologyAnalyzer:
+    def __init__(self, token):
+        self.token = token
+        self.topology_cache = {}
+    
+    def get_gateway_info(self, product_key, device_key):
+        """获取子设备网关信息"""
+        try:
+            result = get_gateway_by_child_device(self.token, product_key, device_key)
+            return result.get("data")
+        except Exception as e:
+            print(f"查询失败: {e}")
+            return None
+    
+    def build_topology(self, child_devices):
+        """构建网关拓扑结构"""
+        topology = {}
+        
+        for device in child_devices:
+            gateway_info = self.get_gateway_info(device["productKey"], device["deviceKey"])
+            
+            if gateway_info:
+                gateway_key = gateway_info["deviceKey"]
+                
+                if gateway_key not in topology:
+                    topology[gateway_key] = {
+                        "gateway": gateway_info,
+                        "children": []
+                    }
+                
+                topology[gateway_key]["children"].append(device)
+        
+        return topology
+    
+    def analyze_connectivity(self, child_devices):
+        """分析连接状态"""
+        connected = 0
+        disconnected = 0
+        gateway_distribution = {}
+        
+        for device in child_devices:
+            gateway_info = self.get_gateway_info(device["productKey"], device["deviceKey"])
+            
+            if gateway_info:
+                connected += 1
+                gateway_key = gateway_info["deviceKey"]
+                gateway_distribution[gateway_key] = gateway_distribution.get(gateway_key, 0) + 1
+            else:
+                disconnected += 1
+        
+        return {
+            "total_devices": len(child_devices),
+            "connected": connected,
+            "disconnected": disconnected,
+            "connectivity_rate": (connected / len(child_devices)) * 100,
+            "gateway_distribution": gateway_distribution
+        }
+    
+    def get_gateway_load(self, topology):
+        """分析网关负载"""
+        load_analysis = {}
+        
+        for gateway_key, gateway_data in topology.items():
+            child_count = len(gateway_data["children"])
+            load_analysis[gateway_key] = {
+                "gateway": gateway_data["gateway"],
+                "child_count": child_count,
+                "load_level": self._classify_load(child_count)
+            }
+        
+        return load_analysis
+    
+    def _classify_load(self, child_count):
+        """分类网关负载等级"""
+        if child_count <= 10:
+            return "轻负载"
+        elif child_count <= 50:
+            return "中负载"
+        elif child_count <= 100:
+            return "重负载"
+        else:
+            return "超负载"
+
+# 使用拓扑分析器
+analyzer = GatewayTopologyAnalyzer(token)
+
+child_devices = [
+    {"productKey": "p12345", "deviceKey": "d67890"},
+    {"productKey": "p12345", "deviceKey": "d67891"},
+    {"productKey": "p12346", "deviceKey": "d67892"}
+]
+
+# 构建拓扑结构
+topology = analyzer.build_topology(child_devices)
+print("网关拓扑结构:", topology)
+
+# 分析连接状态
+connectivity = analyzer.analyze_connectivity(child_devices)
+print(f"连接状态分析:")
+print(f"  总设备数: {connectivity['total_devices']}")
+print(f"  已连接: {connectivity['connected']}")
+print(f"  未连接: {connectivity['disconnected']}")
+print(f"  连接率: {connectivity['connectivity_rate']:.1f}%")
+
+# 分析网关负载
+load_analysis = analyzer.get_gateway_load(topology)
+for gateway_key, load_info in load_analysis.items():
+    print(f"网关 {gateway_key}: {load_info['child_count']}个子设备 ({load_info['load_level']})")
+```
+
+```curl cURL
+# 查询子设备所属网关
+curl -X GET "https://iot-api.quectelcn.com/v2/devicemgr/r1/openapi/product/gateway/getGatewayProductByChildDevice?productKey=p12345&deviceKey=d67890&language=CN" \
+  -H "Authorization: YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/x-www-form-urlencoded"
+
+# 查询英文响应
+curl -X GET "https://iot-api.quectelcn.com/v2/devicemgr/r1/openapi/product/gateway/getGatewayProductByChildDevice?productKey=p12345&deviceKey=d67890&language=EN" \
+  -H "Authorization: YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/x-www-form-urlencoded"
+
+# 查询不同产品下的子设备
+curl -X GET "https://iot-api.quectelcn.com/v2/devicemgr/r1/openapi/product/gateway/getGatewayProductByChildDevice?productKey=p12346&deviceKey=d67891" \
+  -H "Authorization: YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/x-www-form-urlencoded"
+```
+
+</CodeGroup>
+
+## 响应示例
+
+### 成功响应（子设备已连接）
+
+```json
+{
+  "code": 200,
+  "msg": "OK",
+  "data": {
+    "productKey": "p11111",
+    "productName": "智能网关产品",
+    "deviceKey": "gateway001",
+    "deviceName": "客厅智能网关"
+  }
+}
+```
+
+### 成功响应（子设备未连接）
+
+```json
+{
+  "code": 200,
+  "msg": "OK",
+  "data": null
+}
+```
+
+## 网关拓扑管理
+
+<Tabs>
+  <Tab title="拓扑构建">
+    ```javascript
+    // 构建完整的网关拓扑结构
+    async function buildGatewayTopology(token, childDevices) {
+      const topology = new Map();
+      
+      for (const device of childDevices) {
+        const gatewayInfo = await getGatewayByChildDevice(
+          token, 
+          device.productKey, 
+          device.deviceKey
+        );
+        
+        if (gatewayInfo.data) {
+          const gatewayKey = gatewayInfo.data.deviceKey;
+          
+          if (!topology.has(gatewayKey)) {
+            topology.set(gatewayKey, {
+              gateway: gatewayInfo.data,
+              children: []
+            });
+          }
+          
+          topology.get(gatewayKey).children.push(device);
+        }
+      }
+      
+      return Object.fromEntries(topology);
+    }
+    ```
+  </Tab>
+  
+  <Tab title="连接监控">
+    ```javascript
+    // 监控子设备连接状态
+    class GatewayConnectionMonitor {
+      constructor(token) {
+        this.token = token;
+        this.monitoringDevices = new Set();
+      }
+      
+      async checkConnection(productKey, deviceKey) {
+        try {
+          const result = await getGatewayByChildDevice(
+            this.token, productKey, deviceKey
+          );
+          return {
+            connected: !!result.data,
+            gateway: result.data,
+            timestamp: Date.now()
+          };
+        } catch (error) {
+          return {
+            connected: false,
+            gateway: null,
+            error: error.message,
+            timestamp: Date.now()
+          };
+        }
+      }
+      
+      async monitorDevices(devices, interval = 30000) {
+        setInterval(async () => {
+          for (const device of devices) {
+            const status = await this.checkConnection(
+              device.productKey, 
+              device.deviceKey
+            );
+            
+            this.onConnectionStatusChange(device, status);
+          }
+        }, interval);
+      }
+      
+      onConnectionStatusChange(device, status) {
+        console.log(`设备 ${device.deviceKey} 连接状态:`, status);
+        // 实现状态变化处理逻辑
+      }
+    }
+    ```
+  </Tab>
+  
+  <Tab title="负载分析">
+    ```javascript
+    // 网关负载分析
+    function analyzeGatewayLoad(topology) {
+      const loadAnalysis = {};
+      
+      for (const [gatewayKey, gatewayData] of Object.entries(topology)) {
+        const childCount = gatewayData.children.length;
+        
+        loadAnalysis[gatewayKey] = {
+          gateway: gatewayData.gateway,
+          childCount: childCount,
+          loadLevel: getLoadLevel(childCount),
+          efficiency: calculateEfficiency(childCount),
+          recommendations: getRecommendations(childCount)
+        };
+      }
+      
+      return loadAnalysis;
+    }
+    
+    function getLoadLevel(childCount) {
+      if (childCount <= 10) return 'low';
+      if (childCount <= 50) return 'medium';
+      if (childCount <= 100) return 'high';
+      return 'overload';
+    }
+    ```
+  </Tab>
+</Tabs>
+
+## 拓扑可视化
+
+```javascript
+// 生成网关拓扑图数据
+function generateTopologyGraph(topology) {
+  const nodes = [];
+  const edges = [];
+  
+  // 添加网关节点
+  for (const [gatewayKey, gatewayData] of Object.entries(topology)) {
+    nodes.push({
+      id: gatewayKey,
+      type: 'gateway',
+      label: gatewayData.gateway.deviceName,
+      data: gatewayData.gateway
+    });
+    
+    // 添加子设备节点和连接
+    gatewayData.children.forEach(child => {
+      nodes.push({
+        id: child.deviceKey,
+        type: 'child',
+        label: child.deviceName || child.deviceKey,
+        data: child
+      });
+      
+      edges.push({
+        source: gatewayKey,
+        target: child.deviceKey,
+        type: 'gateway-child'
+      });
+    });
+  }
+  
+  return { nodes, edges };
+}
+
+// 导出拓扑数据
+function exportTopology(topology, format = 'json') {
+  const graphData = generateTopologyGraph(topology);
+  
+  switch (format) {
+    case 'json':
+      return JSON.stringify(graphData, null, 2);
+    case 'csv':
+      return convertToCSV(graphData);
+    case 'dot':
+      return convertToDot(graphData);
+    default:
+      return graphData;
+  }
+}
+```
+
+## 错误处理
+
+| 错误码 | 描述 | 解决方案 |
+|--------|------|----------|
+| 50007 | DeviceKey或ProductKey为空 | 提供有效的设备和产品标识 |
+| 70026 | 子设备未连接到网关设备 | 检查设备连接状态，确认网关在线 |
+| 70027 | 不是产品集成的产品 | 验证产品是否支持网关集成 |
+| 70028 | 没有关联的网关设备 | 确认子设备已正确添加到网关 |
+| 70029 | 不是子网关产品 | 验证产品类型和网关配置 |
+| 70089 | 权限受限 | 检查SaaS应用设备权限配置 |
+
+## 使用场景
+
+<CardGroup cols={2}>
+  <Card title="拓扑管理" icon="sitemap">
+    构建和维护网关设备拓扑结构
+  </Card>
+  <Card title="连接监控" icon="wifi">
+    实时监控子设备连接状态
+  </Card>
+  <Card title="负载分析" icon="chart-bar">
+    分析网关设备负载和性能
+  </Card>
+  <Card title="故障诊断" icon="bug">
+    诊断网关连接和通信问题
+  </Card>
+</CardGroup>
+
+## 相关接口
+
+<CardGroup cols={2}>
+  <Card title="网关子设备列表" href="/api-reference/endpoint/gateway-subdevice-list">
+    查询网关下的子设备列表
+  </Card>
+  <Card title="网关解绑" href="/api-reference/endpoint/gateway-unbind">
+    解绑网关和子设备关系
+  </Card>
+  <Card title="设备详情" href="/api-reference/endpoint/device-detail">
+    查询设备详细信息
+  </Card>
+  <Card title="设备管理" href="/api-reference/endpoint/device-mgmt">
+    设备管理和操作
+  </Card>
+</CardGroup>
