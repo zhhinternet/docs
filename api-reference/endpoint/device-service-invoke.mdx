@@ -30,7 +30,8 @@ openapi: 'POST /v2/deviceshadow/r3/openapi/dm/sendServiceData'
 | 参数名 | 类型 | 必填 | 说明 |
 |--------|------|------|------|
 | productKey | String | 是 | 产品PK |
-| deviceKeys | Array | 是 | 设备DK列表 |
+| deviceKey | String | 否 | 设备DK（单设备模式，与deviceKeys二选一） |
+| deviceKeys | Array | 否 | 设备DK列表（批量模式，与deviceKey二选一） |
 | data | String | 是 | 发送下行数据的具体内容 |
 | identifier | String | 是 | 服务标识符 |
 | qos | Integer | 否 | qos等级设置（不传默认为1） |
@@ -59,18 +60,30 @@ async function sendServiceData(token, serviceData) {
   return await response.json();
 }
 
-// 发送重启服务命令
-const rebootService = {
+// 单设备服务调用
+const singleDeviceService = {
   productKey: 'p12345',
-  deviceKeys: ['d67890', 'd67891'],
+  deviceKey: 'd67890',
+  identifier: 'reboot',
+  data: JSON.stringify({ delay: 5 }),
+  qos: 1
+};
+
+const singleResult = await sendServiceData(token, singleDeviceService);
+
+// 批量设备服务调用（带缓存）
+const batchService = {
+  productKey: 'p12345',
+  deviceKeys: ['d67890', 'd67891', 'd67892'],
   identifier: 'reboot',
   data: JSON.stringify({ delay: 5 }),
   qos: 1,
   isCache: true,
-  cacheTime: 300
+  cacheTime: 300,
+  isOverride: true
 };
 
-const serviceResult = await sendServiceData(token, rebootService);
+const batchResult = await sendServiceData(token, batchService);
 
 // 发送配置重置服务
 const resetConfigService = {
@@ -130,18 +143,30 @@ def send_service_data(token, service_data):
     
     return response.json()
 
-# 发送重启服务命令
-reboot_service = {
+# 单设备服务调用
+single_device_service = {
     "productKey": "p12345",
-    "deviceKeys": ["d67890", "d67891"],
+    "deviceKey": "d67890",
+    "identifier": "reboot",
+    "data": json.dumps({"delay": 5}),
+    "qos": 1
+}
+
+single_result = send_service_data(token, single_device_service)
+
+# 批量设备服务调用（带缓存）
+batch_service = {
+    "productKey": "p12345",
+    "deviceKeys": ["d67890", "d67891", "d67892"],
     "identifier": "reboot",
     "data": json.dumps({"delay": 5}),
     "qos": 1,
     "isCache": True,
-    "cacheTime": 300
+    "cacheTime": 300,
+    "isOverride": True
 }
 
-result = send_service_data(token, reboot_service)
+batch_result = send_service_data(token, batch_service)
 
 # 发送诊断服务
 diagnostic_service = {
@@ -180,18 +205,46 @@ config_result = send_service_data(token, config_update_service)
 ```
 
 ```curl cURL
-# 发送重启服务命令
+# 单设备服务调用
 curl -X POST "https://iot-api.quectelcn.com/v2/deviceshadow/r3/openapi/dm/sendServiceData" \
   -H "Authorization: YOUR_JWT_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "productKey": "p12345",
-    "deviceKeys": ["d67890", "d67891"],
+    "deviceKey": "d67890",
+    "identifier": "reboot",
+    "data": "{\"delay\":5}",
+    "qos": 1
+  }'
+
+# 批量设备服务调用（带缓存）
+curl -X POST "https://iot-api.quectelcn.com/v2/deviceshadow/r3/openapi/dm/sendServiceData" \
+  -H "Authorization: YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "productKey": "p12345",
+    "deviceKeys": ["d67890", "d67891", "d67892"],
     "identifier": "reboot",
     "data": "{\"delay\":5}",
     "qos": 1,
     "isCache": true,
-    "cacheTime": 300
+    "cacheTime": 300,
+    "isOverride": true
+  }'
+
+# 离线设备服务缓存
+curl -X POST "https://iot-api.quectelcn.com/v2/deviceshadow/r3/openapi/dm/sendServiceData" \
+  -H "Authorization: YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "productKey": "p12345",
+    "deviceKeys": ["d67893"],
+    "identifier": "firmware_update",
+    "data": "{\"version\":\"v2.1.0\",\"downloadUrl\":\"https://firmware.example.com/v2.1.0.bin\"}",
+    "qos": 1,
+    "isCache": true,
+    "cacheTime": 1800,
+    "isOverride": false
   }'
 
 # 发送固件更新服务
@@ -211,6 +264,58 @@ curl -X POST "https://iot-api.quectelcn.com/v2/deviceshadow/r3/openapi/dm/sendSe
 
 </CodeGroup>
 
+## 服务数据格式详解
+
+服务调用同样遵循TSL格式，但结构与属性数据略有不同：
+
+### 服务数据格式
+<Tabs>
+  <Tab title="基础服务">
+    ```json
+    // 基础类型服务参数
+    "[{\"service_name\":[{\"param1\":\"value1\"},{\"param2\":\"value2\"}]}]"
+    
+    // 实际示例
+    "[{\"reboot\":[{\"delay\":5},{\"force\":true}]}]"
+    "[{\"reset_config\":[{\"confirmCode\":\"RESET123\"}]}]"
+    ```
+    基础服务调用的数据格式
+  </Tab>
+  
+  <Tab title="数组参数服务">
+    ```json
+    // 包含数组参数的服务
+    "[{\"service_name\":[{\"array_param\":[{\"0\":\"value1\"},{\"0\":\"value2\"}]}]}]"
+    
+    // 实际示例
+    "[{\"batch_update\":[{\"target_devices\":[{\"0\":\"device1\"},{\"0\":\"device2\"}]}]}]"
+    ```
+    包含数组参数的服务调用
+  </Tab>
+  
+  <Tab title="结构体参数服务">
+    ```json
+    // 包含结构体参数的服务
+    "[{\"service_name\":[{\"struct_param\":[{\"field1\":\"value1\"},{\"field2\":\"value2\"}]}]}]"
+    
+    // 实际示例
+    "[{\"firmware_update\":[{\"package_info\":[{\"version\":\"v2.1.0\"},{\"size\":1024000}]}]}]"
+    ```
+    包含结构体参数的服务调用
+  </Tab>
+  
+  <Tab title="复合参数服务">
+    ```json
+    // 复杂的数组+结构体参数
+    "[{\"service_name\":[{\"complex_param\":[{\"0\":[{\"field1\":\"value1\"}]},{\"0\":[{\"field2\":\"value2\"}]}]}]}]"
+    
+    // 实际示例
+    "[{\"multi_config\":[{\"settings\":[{\"0\":[{\"key\":\"temp_threshold\"}]},{\"0\":[{\"value\":25.5}]}]}]}]"
+    ```
+    复杂参数结构的服务调用
+  </Tab>
+</Tabs>
+
 ## 服务类型示例
 
 <Tabs>
@@ -218,10 +323,10 @@ curl -X POST "https://iot-api.quectelcn.com/v2/deviceshadow/r3/openapi/dm/sendSe
     ```json
     {
       "identifier": "reboot",
-      "data": "{\"delay\": 10}"
+      "data": "[{\"reboot\":[{\"delay\":10},{\"force\":true}]}]"
     }
     ```
-    重启设备服务，可指定延迟时间
+    重启设备服务，可指定延迟时间和强制模式
   </Tab>
   
   <Tab title="配置管理服务">
@@ -313,14 +418,31 @@ curl -X POST "https://iot-api.quectelcn.com/v2/deviceshadow/r3/openapi/dm/sendSe
 }
 ```
 
-## 缓存机制
+## 缓存与批量管理
+
+<CardGroup cols={2}>
+  <Card title="服务缓存" icon="database">
+    离线设备的服务调用会被缓存，上线后自动执行
+  </Card>
+  <Card title="批量调用" icon="layer-group">
+    支持同时向多个设备发送相同的服务调用
+  </Card>
+</CardGroup>
+
+### 缓存参数详解
+
+| 参数 | 默认值 | 说明 | 使用场景 |
+|------|--------|------|----------|
+| isCache | false | 是否缓存服务调用 | 设备可能离线的关键服务 |
+| cacheTime | 600秒 | 缓存有效时间 | 根据设备上线频率设置 |
+| isOverride | false | 新服务是否覆盖旧服务 | 避免重复服务堆积 |
 
 <Info>
-**服务缓存**: 当 `isCache` 为 true 时，服务调用会被缓存。设备上线后会自动执行缓存的服务调用。
+**智能缓存**: 系统自动检测设备在线状态，在线设备立即执行，离线设备按缓存设置处理。
 </Info>
 
 <Warning>
-**缓存时间**: 缓存时间到期后，未执行的服务调用将被自动清除。合理设置 `cacheTime` 以平衡存储成本和执行机会。
+**批量限制**: 单次批量操作建议不超过100个设备，大量设备请分批处理。缓存时间最长48小时。
 </Warning>
 
 ## QoS等级说明
@@ -342,6 +464,9 @@ curl -X POST "https://iot-api.quectelcn.com/v2/deviceshadow/r3/openapi/dm/sendSe
 | 70018 | 设备不存在 | 验证所有设备已注册 |
 | 70089 | 权限受限 | 检查SaaS应用设备授权 |
 | 50008 | 服务数据格式无效 | 确保数据遵循服务定义格式 |
+| 61002 | 设备离线 | 启用缓存机制或等待设备上线 |
+| 61006 | 设备消息上限 | 控制服务调用频率 |
+| 50011 | 服务标识符无效 | 验证identifier在物模型中的定义 |
 
 ## 批量处理最佳实践
 

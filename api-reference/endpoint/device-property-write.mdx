@@ -153,9 +153,62 @@ curl -X POST "https://iot-api.quectelcn.com/v2/deviceshadow/r3/openapi/dm/writeD
 
 </CodeGroup>
 
-## 物模型格式
+## 物模型数据格式详解
 
-命令必须遵循产品模型中定义的TSL(物规范语言)格式：
+命令必须遵循产品模型中定义的TSL(物规范语言)格式。以下是各种数据类型的详细示例：
+
+### 基础数据类型格式
+<Tabs>
+  <Tab title="基础类型">
+    ```json
+    // bool/int/float/double/enum/date/text
+    "[{\"key\":\"value\"}]"
+    
+    // 实际示例
+    "[{\"switch\":true}]"
+    "[{\"temperature\":25.5}]"
+    "[{\"status\":\"online\"}]"
+    ```
+    基础属性类型的数据格式
+  </Tab>
+  
+  <Tab title="数组类型">
+    ```json
+    // array格式 (id为索引，从0开始)
+    "[{\"key\":[{\"0\":\"value1\"},{\"0\":\"value2\"}]}]"
+    
+    // 实际示例
+    "[{\"sensors\":[{\"0\":\"temp1\"},{\"0\":\"temp2\"}]}]"
+    "[{\"coordinates\":[{\"0\":120.5},{\"0\":30.2}]}]"
+    ```
+    数组属性的数据格式
+  </Tab>
+  
+  <Tab title="结构体类型">
+    ```json
+    // struct格式
+    "[{\"key\":[{\"key1\":\"value1\"},{\"key2\":\"value2\"}]}]"
+    
+    // 实际示例
+    "[{\"location\":[{\"lat\":30.2},{\"lng\":120.5}]}]"
+    "[{\"rgb_color\":[{\"red\":255},{\"green\":128},{\"blue\":64}]}]"
+    ```
+    结构体属性的数据格式
+  </Tab>
+  
+  <Tab title="复合类型">
+    ```json
+    // array含有struct格式
+    "[{\"key\":[{\"0\":[{\"key1\":\"value1\"}]},{\"0\":[{\"key2\":\"value2\"}]}]}]"
+    
+    // 实际示例
+    "[{\"devices\":[{\"0\":[{\"name\":\"sensor1\"}]},{\"0\":[{\"name\":\"sensor2\"}]}]}]"
+    ```
+    数组包含结构体的复合数据格式
+  </Tab>
+</Tabs>
+
+### TSL模型定义
 
 ```json
 {
@@ -235,15 +288,38 @@ curl -X POST "https://iot-api.quectelcn.com/v2/deviceshadow/r3/openapi/dm/writeD
   </Tab>
 </Tabs>
 
-## 传递保证
+## 缓存机制详解
+
+<CardGroup cols={2}>
+  <Card title="命令缓存" icon="database">
+    设备离线时将命令缓存到服务器，设备上线后自动下发
+  </Card>
+  <Card title="消息覆盖" icon="refresh">
+    新命令可选择覆盖之前未执行的缓存命令
+  </Card>
+</CardGroup>
+
+### 缓存参数说明
+
+| 参数 | 说明 | 默认值 | 备注 |
+|------|------|--------|------|
+| isCache | 是否启用缓存 | false | true时设备离线命令会被缓存 |
+| cacheTime | 缓存时间(秒) | 600 | 缓存命令的有效期 |
+| isOverride | 是否覆盖 | false | true时新命令覆盖旧的缓存命令 |
+
+### 缓存策略
 
 <Info>
-**至少一次传递**: 当设备在线时，保证命令至少传递一次。在设备中实现幂等命令处理。
+**智能缓存**: 当设备在线时，命令立即下发；设备离线时，根据缓存设置决定是否缓存命令。
 </Info>
 
 <Warning>
-**离线设备**: 离线设备的命令会排队等待48小时。超过此期间后，未传递的命令将被丢弃。
+**缓存限制**: 缓存时间最长48小时，超期未传递的命令将被自动清理。单设备最多缓存100条命令。
 </Warning>
+
+<Note>
+**消息覆盖**: 启用覆盖后，相同类型的新命令会替换队列中的旧命令，避免重复执行。
+</Note>
 
 ## 错误处理
 

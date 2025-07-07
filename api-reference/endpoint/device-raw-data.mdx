@@ -36,8 +36,14 @@ openapi: 'POST /v2/deviceshadow/r3/openapi/raw/sendData'
 | 参数名 | 类型 | 必填 | 说明 |
 |--------|------|------|------|
 | productKey | String | 是 | 产品PK |
-| deviceKey | String | 是 | 设备DK |
-| data | String | 是 | Base64编码的透传数据 |
+| deviceKey | String | 否 | 设备DK（单设备模式，与devices二选一） |
+| devices | Array | 否 | 设备列表（多设备模式，与deviceKey二选一） |
+| data | String | 是 | 透传数据内容 |
+| encode | String | 否 | 数据编码格式（Text/Hex，默认Text） |
+| qos | Integer | 否 | QoS等级设置（默认为1） |
+| isCache | Boolean | 否 | 是否启用缓存（默认为false） |
+| cacheTime | Integer | 否 | 缓存时间，单位秒（isCache为true时生效，默认600） |
+| isOverride | Boolean | 否 | 是否覆盖前面发送的数据（默认为false） |
 
 ## 代码示例
 
@@ -67,9 +73,79 @@ async function sendRawData(token, productKey, deviceKey, rawData) {
   return await response.json();
 }
 
-// 发送文本命令
+// 单设备发送文本命令
 const textCommand = "SET_TEMP:25.5";
 const textResult = await sendRawData(token, 'p12345', 'd67890', textCommand);
+
+// 多设备透传数据发送函数
+async function sendMultiDeviceRawData(token, devices, rawData, options = {}) {
+  // 对数据进行编码处理
+  let encodedData;
+  if (options.encode === 'Hex') {
+    // Hex编码：将十六进制字符串转为Base64
+    const hexBytes = rawData.match(/.{2}/g).map(byte => parseInt(byte, 16));
+    const hexString = String.fromCharCode(...hexBytes);
+    encodedData = btoa(hexString);
+  } else {
+    // Text编码：直接转为Base64
+    encodedData = btoa(rawData);
+  }
+  
+  const response = await fetch(
+    'https://iot-api.quectelcn.com/v2/deviceshadow/r3/openapi/raw/sendData',
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': token,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        devices,
+        data: encodedData,
+        encode: options.encode || 'Text',
+        qos: options.qos || 1,
+        isCache: options.isCache || false,
+        cacheTime: options.cacheTime || 600,
+        isOverride: options.isOverride || false
+      })
+    }
+  );
+  
+  return await response.json();
+}
+
+// 多设备文本数据发送
+const multiDevices = [
+  { productKey: 'p12345', deviceKey: 'd67890' },
+  { productKey: 'p12345', deviceKey: 'd67891' },
+  { productKey: 'p12345', deviceKey: 'd67892' }
+];
+
+const multiTextResult = await sendMultiDeviceRawData(
+  token, 
+  multiDevices, 
+  'BATCH_COMMAND:START', 
+  {
+    encode: 'Text',
+    isCache: true,
+    cacheTime: 300,
+    qos: 1
+  }
+);
+
+// 多设备Hex数据发送
+const hexCommand = "AA55010203FF";
+const multiHexResult = await sendMultiDeviceRawData(
+  token,
+  multiDevices,
+  hexCommand,
+  {
+    encode: 'Hex',
+    isCache: true,
+    cacheTime: 600,
+    isOverride: true
+  }
+);
 
 // 发送十六进制数据
 const hexData = "AA55010203FF";
@@ -148,9 +224,91 @@ def send_raw_data(token, product_key, device_key, raw_data):
     
     return response.json()
 
-# 发送文本命令
+# 单设备发送文本命令
 text_command = "SET_TEMP:25.5"
 result = send_raw_data(token, "p12345", "d67890", text_command)
+
+# 多设备透传数据发送函数
+def send_multi_device_raw_data(token, devices, raw_data, **options):
+    """
+    向多个设备发送透传数据
+    
+    Args:
+        token: JWT认证token
+        devices: 设备列表，格式: [{"productKey": "pk", "deviceKey": "dk"}, ...]
+        raw_data: 原始数据
+        **options: 可选参数 (encode, qos, isCache, cacheTime, isOverride)
+    
+    Returns:
+        发送结果
+    """
+    url = "https://iot-api.quectelcn.com/v2/deviceshadow/r3/openapi/raw/sendData"
+    
+    encode_format = options.get("encode", "Text")
+    
+    # 数据编码处理
+    if encode_format == "Hex":
+        # Hex编码：将十六进制字符串转为字节数据
+        hex_data = bytes.fromhex(raw_data)
+        encoded_data = base64.b64encode(hex_data).decode('utf-8')
+    else:
+        # Text编码：直接编码
+        if isinstance(raw_data, str):
+            raw_data = raw_data.encode('utf-8')
+        encoded_data = base64.b64encode(raw_data).decode('utf-8')
+    
+    payload = {
+        "devices": devices,
+        "data": encoded_data,
+        "encode": encode_format,
+        "qos": options.get("qos", 1),
+        "isCache": options.get("isCache", False),
+        "cacheTime": options.get("cacheTime", 600),
+        "isOverride": options.get("isOverride", False)
+    }
+    
+    headers = {
+        "Authorization": token,
+        "Content-Type": "application/json"
+    }
+    
+    response = requests.post(url, json=payload, headers=headers)
+    response.raise_for_status()
+    
+    return response.json()
+
+# 多设备文本数据发送
+multi_devices = [
+    {"productKey": "p12345", "deviceKey": "d67890"},
+    {"productKey": "p12345", "deviceKey": "d67891"},
+    {"productKey": "p12345", "deviceKey": "d67892"}
+]
+
+multi_text_result = send_multi_device_raw_data(
+    token, 
+    multi_devices, 
+    "BATCH_COMMAND:START",
+    encode="Text",
+    isCache=True,
+    cacheTime=300,
+    qos=1
+)
+
+print(f"多设备文本数据发送结果: {multi_text_result}")
+
+# 多设备Hex数据发送
+hex_command = "AA55010203FF"
+multi_hex_result = send_multi_device_raw_data(
+    token,
+    multi_devices,
+    hex_command,
+    encode="Hex",
+    isCache=True,
+    cacheTime=600,
+    isOverride=True
+)
+
+print(f"多设备Hex数据发送结果: {multi_hex_result}")
 
 # 发送十六进制数据
 hex_data = bytes.fromhex("AA55010203FF")
@@ -189,42 +347,130 @@ modbus_result = send_modbus_command(token, "p12345", "d67890", 1, 6, 0x1000, 255
 ```
 
 ```curl cURL
-# 发送文本命令（Hello Device的Base64编码）
+# 单设备文本数据发送（Hello Device的Base64编码）
 curl -X POST "https://iot-api.quectelcn.com/v2/deviceshadow/r3/openapi/raw/sendData" \
   -H "Authorization: YOUR_JWT_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "productKey": "p12345",
     "deviceKey": "d67890",
-    "data": "SGVsbG8gRGV2aWNl"
+    "data": "SGVsbG8gRGV2aWNl",
+    "encode": "Text"
   }'
 
-# 发送十六进制数据（AA55010203FF的Base64编码）
+# 多设备文本数据发送（带缓存）
+curl -X POST "https://iot-api.quectelcn.com/v2/deviceshadow/r3/openapi/raw/sendData" \
+  -H "Authorization: YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "devices": [
+      {"productKey": "p12345", "deviceKey": "d67890"},
+      {"productKey": "p12345", "deviceKey": "d67891"},
+      {"productKey": "p12345", "deviceKey": "d67892"}
+    ],
+    "data": "QkFUQ0hfQ09NTUFORF9TVEFSVF9DTUQhCg==",
+    "encode": "Text",
+    "qos": 1,
+    "isCache": true,
+    "cacheTime": 300,
+    "isOverride": true
+  }'
+
+# 单设备Hex数据发送（AA55010203FF的Base64编码）
 curl -X POST "https://iot-api.quectelcn.com/v2/deviceshadow/r3/openapi/raw/sendData" \
   -H "Authorization: YOUR_JWT_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "productKey": "p12345",
     "deviceKey": "d67890",
-    "data": "qlUBAgP/"
+    "data": "qlUBAgP/",
+    "encode": "Hex"
+  }'
+
+# 多设备Hex数据发送（带缓存和覆盖）
+curl -X POST "https://iot-api.quectelcn.com/v2/deviceshadow/r3/openapi/raw/sendData" \
+  -H "Authorization: YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "devices": [
+      {"productKey": "p12345", "deviceKey": "d67890"},
+      {"productKey": "p12345", "deviceKey": "d67891"}
+    ],
+    "data": "qlUBAgP/",
+    "encode": "Hex",
+    "qos": 1,
+    "isCache": true,
+    "cacheTime": 600,
+    "isOverride": true
+  }'
+
+# 离线设备缓存数据发送
+curl -X POST "https://iot-api.quectelcn.com/v2/deviceshadow/r3/openapi/raw/sendData" \
+  -H "Authorization: YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "devices": [
+      {"productKey": "p12345", "deviceKey": "d67893"}
+    ],
+    "data": "RklSTVdBUkVfVVBEQVRFX0NNRF9URVNUCg==",
+    "encode": "Text",
+    "qos": 1,
+    "isCache": true,
+    "cacheTime": 1800,
+    "isOverride": false
   }'
 ```
 
 </CodeGroup>
 
-## 数据格式示例
+## 编码格式详解
+
+### 编码类型对比
+
+| 编码方式 | 说明 | 适用场景 | 数据处理 |
+|---------|------|----------|----------|
+| Text | UTF-8文本编码 | 文本命令、JSON数据 | 直接Base64编码 |
+| Hex | 十六进制编码 | 二进制协议、工业控制 | 先转字节再Base64编码 |
+
+### 数据编码示例
 
 <Tabs>
-  <Tab title="文本协议">
+  <Tab title="Text编码">
     ```javascript
     // 原始文本命令
     const textCmd = "SET_TEMP:25.5;SET_HUM:60";
     
-    // Base64编码
+    // Text编码流程：文本 -> Base64
     const encoded = btoa(textCmd);
     // 结果: "U0VUX1RFTU06MjUuNTtTRVRfSFVNOjYw"
+    
+    // 发送参数
+    {
+      "data": "U0VUX1RFTU06MjUuNTtTRVRfSFVNOjYw",
+      "encode": "Text"
+    }
     ```
-    简单的文本协议命令
+    文本格式的编码处理
+  </Tab>
+  
+  <Tab title="Hex编码">
+    ```javascript
+    // 原始十六进制数据
+    const hexData = "AA55010203FF";
+    
+    // Hex编码流程：十六进制 -> 字节数组 -> Base64
+    const bytes = hexData.match(/.{2}/g).map(b => parseInt(b, 16));
+    const binaryData = String.fromCharCode(...bytes);
+    const encoded = btoa(binaryData);
+    // 结果: "qlUBAgP/"
+    
+    // 发送参数
+    {
+      "data": "qlUBAgP/",
+      "encode": "Hex"
+    }
+    ```
+    十六进制格式的编码处理
   </Tab>
   
   <Tab title="十六进制数据">
@@ -325,26 +571,94 @@ curl -X POST "https://iot-api.quectelcn.com/v2/deviceshadow/r3/openapi/raw/sendD
   </Card>
 </CardGroup>
 
+## 多设备管理
+
+<CardGroup cols={2}>
+  <Card title="批量发送" icon="layer-group">
+    支持同时向多个设备发送相同的透传数据
+  </Card>
+  <Card title="缓存机制" icon="database">
+    离线设备的数据会被缓存，上线后自动下发
+  </Card>
+</CardGroup>
+
+### 设备列表格式
+
+```json
+// 多设备格式
+"devices": [
+  {
+    "productKey": "p12345",
+    "deviceKey": "d67890"
+  },
+  {
+    "productKey": "p12345",
+    "deviceKey": "d67891"
+  }
+]
+
+// 单设备格式（向下兼容）
+"productKey": "p12345",
+"deviceKey": "d67890"
+```
+
+### 缓存参数说明
+
+| 参数 | 默认值 | 说明 | 适用场景 |
+|------|--------|------|----------|
+| isCache | false | 是否缓存数据 | 设备可能离线的情况 |
+| cacheTime | 600秒 | 缓存有效时间 | 根据设备上线频率设置 |
+| isOverride | false | 是否覆盖旧数据 | 避免数据堆积 |
+| encode | Text | 编码格式 | Text或Hex模式选择 |
+
 ## 数据处理工具
 
 <AccordionGroup>
-  <Accordion title="Base64编码工具">
+  <Accordion title="Text编码工具">
     ```javascript
-    // JavaScript Base64编码
-    function encodeToBase64(data) {
-      if (typeof data === 'string') {
-        return btoa(data);
-      } else if (data instanceof ArrayBuffer) {
-        return btoa(String.fromCharCode(...new Uint8Array(data)));
-      }
+    // JavaScript Text编码
+    function encodeText(text) {
+      return btoa(text);
     }
     
-    // Python Base64编码
+    function decodeText(base64) {
+      return atob(base64);
+    }
+    
+    // Python Text编码
     import base64
-    def encode_to_base64(data):
-        if isinstance(data, str):
-            data = data.encode('utf-8')
-        return base64.b64encode(data).decode('utf-8')
+    def encode_text(text):
+        return base64.b64encode(text.encode('utf-8')).decode('utf-8')
+    
+    def decode_text(base64_data):
+        return base64.b64decode(base64_data).decode('utf-8')
+    ```
+  </Accordion>
+  
+  <Accordion title="Hex编码工具">
+    ```javascript
+    // JavaScript Hex编码
+    function encodeHex(hexString) {
+      const bytes = hexString.match(/.{2}/g).map(b => parseInt(b, 16));
+      const binaryString = String.fromCharCode(...bytes);
+      return btoa(binaryString);
+    }
+    
+    function decodeHex(base64) {
+      const binaryString = atob(base64);
+      const bytes = Array.from(binaryString).map(c => c.charCodeAt(0));
+      return bytes.map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase();
+    }
+    
+    // Python Hex编码
+    import base64
+    def encode_hex(hex_string):
+        hex_bytes = bytes.fromhex(hex_string)
+        return base64.b64encode(hex_bytes).decode('utf-8')
+    
+    def decode_hex(base64_data):
+        hex_bytes = base64.b64decode(base64_data)
+        return hex_bytes.hex().upper()
     ```
   </Accordion>
   
@@ -400,12 +714,16 @@ curl -X POST "https://iot-api.quectelcn.com/v2/deviceshadow/r3/openapi/raw/sendD
 | 错误码 | 描述 | 解决方案 |
 |--------|------|----------|
 | 50006 | ProductKey为空 | 提供有效的productKey参数 |
-| 50007 | DeviceKey为空 | 提供有效的deviceKey参数 |
+| 50007 | DeviceKey为空 | 提供有效的deviceKey或devices参数 |
 | 50008 | 数据格式无效 | 验证Base64编码格式正确性 |
 | 50012 | 数据大小超限 | 减少数据包大小或分片发送 |
+| 50013 | 编码格式错误 | 检查encode参数，确保为Text或Hex |
+| 50014 | Hex数据格式错误 | 确保Hex字符串为偶数且只包含0-9A-F |
 | 70017 | 产品不存在 | 验证产品存在且可访问 |
 | 70018 | 设备不存在 | 验证设备已注册 |
 | 70089 | 权限受限 | 检查SaaS应用设备授权 |
+| 61002 | 设备离线 | 启用缓存机制或等待设备上线 |
+| 61006 | 设备消息上限 | 控制发送频率或联系技术支持 |
 
 ## 协议对接指南
 
