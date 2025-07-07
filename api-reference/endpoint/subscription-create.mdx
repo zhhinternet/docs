@@ -58,52 +58,26 @@ async function createProductSubscription(token, subscriptionConfig) {
   return await response.json();
 }
 
-// 创建全面的产品订阅
+// 创建产品订阅（数据等级1表示产品级）
 const productSubscription = {
   queueName: 'iot-sensor-data',
-  subscriptionName: '产品事件综合订阅',
-  type: 'PRODUCT',
-  productKeys: ['p12345', 'p67890'],
-  eventTypes: [
-    'DEVICE_ONLINE',
-    'DEVICE_OFFLINE', 
-    'DEVICE_DATA',
-    'DEVICE_EVENT'
-  ]
+  subscribeName: '产品事件综合订阅',
+  dataLevel: 1,
+  productKey: 'PK0001',
+  msgTypes: [1, 2, 3, 6, 7]  // 1-设备上下线, 2-设备状态, 3-上行数据, 6-物模型属性, 7-物模型事件
 };
 
 const subscriptionResult = await createProductSubscription(token, productSubscription);
 console.log(`订阅已创建: ${subscriptionResult.data.subscriptionId}`);
 
-// 创建专门的告警订阅
-const alertSubscription = {
-  queueName: 'iot-device-alerts',
-  subscriptionName: '设备告警事件订阅',
-  type: 'PRODUCT',
-  productKeys: ['p12345'],
-  eventTypes: ['DEVICE_EVENT', 'DEVICE_OFFLINE']
-};
-
-const alertResult = await createProductSubscription(token, alertSubscription);
-
-// 创建数据订阅
-const dataSubscription = {
-  queueName: 'iot-device-data',
-  subscriptionName: '设备数据订阅',
-  type: 'PRODUCT',
-  productKeys: ['p12345', 'p67890', 'p11111'],
-  eventTypes: ['DEVICE_DATA']
-};
-
-const dataResult = await createProductSubscription(token, dataSubscription);
-
-// 创建设备级订阅  
+// 创建设备级订阅（数据等级2表示设备级）
 const deviceSubscription = {
-  queueName: 'my-app-device-events',
-  subscriptionName: '重要设备事件订阅', 
-  type: 'DEVICE',
-  deviceKeys: ['d12345', 'd67890'],
-  eventTypes: ['DEVICE_DATA', 'DEVICE_EVENT', 'DEVICE_ONLINE', 'DEVICE_OFFLINE']
+  queueName: 'iot-device-alerts',
+  subscribeName: '设备告警事件订阅',
+  dataLevel: 2,
+  productKey: 'PK0001',
+  deviceKey: 'DK00001',
+  msgTypes: [1, 7, 8, 9]  // 1-设备上下线, 7-物模型事件-信息, 8-告警, 9-故障
 };
 
 const deviceResult = await createProductSubscription(token, deviceSubscription);

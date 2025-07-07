@@ -74,36 +74,45 @@ async function createDevicesBatch(token, productKey, devices) {
   return await response.json();
 }
 
-// 批量创建设备（自动生成密钥）
-const devicesWithAutoKeys = [
-  { deviceName: '温度传感器-001' },
-  { deviceName: '温度传感器-002' },
-  { deviceName: '温度传感器-003' },
-  { deviceName: '温度传感器-004' },
-  { deviceName: '温度传感器-005' }
-];
-
-// 批量创建设备（预定义密钥）
-const devicesWithCustomKeys = [
+// 批量创建设备（必须提供deviceKey）
+const devicesWithKeys = [
   { 
-    deviceName: '湿度传感器-001',
-    deviceKey: 'humidity_sensor_001',
-    deviceSecret: 'custom_secret_001'
+    deviceKey: 'DK001',
+    deviceName: '温度传感器-001' 
   },
   { 
+    deviceKey: 'DK002',
+    deviceName: '温度传感器-002' 
+  },
+  { 
+    deviceKey: 'DK003',
+    deviceName: '温度传感器-003' 
+  }
+];
+
+// 批量创建设备（带SN和认证模式）
+const devicesWithAdvanced = [
+  { 
+    deviceKey: 'DK004',
+    deviceName: '湿度传感器-001',
+    sn: 'SN001',
+    authMode: 1
+  },
+  { 
+    deviceKey: 'DK005',
     deviceName: '湿度传感器-002',
-    deviceKey: 'humidity_sensor_002',
-    deviceSecret: 'custom_secret_002'
+    sn: 'SN002',
+    authMode: 1
   }
 ];
 
 // 执行批量创建
 try {
-  const result1 = await createDevicesBatch(token, 'p12345', devicesWithAutoKeys);
-  console.log('自动密钥批量创建结果:', result1.data);
+  const result1 = await createDevicesBatch(token, 'p12345', devicesWithKeys);
+  console.log('基础批量创建结果:', result1.data);
   
-  const result2 = await createDevicesBatch(token, 'p12345', devicesWithCustomKeys);
-  console.log('自定义密钥批量创建结果:', result2.data);
+  const result2 = await createDevicesBatch(token, 'p12345', devicesWithAdvanced);
+  console.log('高级批量创建结果:', result2.data);
   
   // 保存设备密钥信息
   result1.data.forEach(device => {

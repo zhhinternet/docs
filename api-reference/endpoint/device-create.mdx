@@ -15,12 +15,11 @@ openapi: 'POST /v2/devicemgr/r3/openapi/device/create'
 | 参数名 | 类型 | 必填 | 说明 |
 |--------|------|------|------|
 | productKey | String | 是 | 产品PK |
-| deviceName | String | 是 | 设备名称 |
-| deviceKey | String | 否 | 设备DK(不传则自动生成) |
-| deviceSecret | String | 否 | 设备DS(不传则自动生成) |
+| deviceKey | String | 是 | 设备DK |
+| deviceName | String | 否 | 设备名称 |
 | authMode | Integer | 否 | 认证方式，0-动态认证 1-静态认证 2-X509，默认0 |
-| deviceSN | String | 否 | 设备SN |
-| deviceFingerprint | String | 否 | 设备指纹 X509设备新增时需要该字段 |
+| sn | String | 否 | 设备SN |
+| fingerPrint | String | 否 | 设备指纹 X509设备新增时需要该字段 |
 | psk | String | 否 | psk 电信AEP设备新增时需要该字段 |
 
 ## 认证方式说明
@@ -65,23 +64,26 @@ async function createDevice(token, deviceData) {
 // 创建普通设备
 const normalDevice = await createDevice(token, {
   productKey: 'p12345',
+  deviceKey: 'DK001',
   deviceName: '温度传感器-1楼-A区'
 });
 
 // 创建静态认证设备
 const staticDevice = await createDevice(token, {
   productKey: 'p12345',
+  deviceKey: 'DK002',
   deviceName: '湿度传感器-1楼-B区',
   authMode: 1,
-  deviceSN: 'SN202312001'
+  sn: 'SN202312001'
 });
 
 // 创建X509认证设备
 const x509Device = await createDevice(token, {
   productKey: 'p12345',
+  deviceKey: 'DK003',
   deviceName: '安全传感器-2楼-A区',
   authMode: 2,
-  deviceFingerprint: 'SHA256:1234567890abcdef...'
+  fingerPrint: 'd30075fefc2c86d1f9ae5a2960750485076d7213'
 });
 
 console.log(`设备已创建: ${normalDevice.data.deviceKey}`);
@@ -116,23 +118,26 @@ def create_device(token, device_data):
 # 创建普通设备
 normal_device = create_device(token, {
     "productKey": "p12345",
+    "deviceKey": "DK001",
     "deviceName": "温度传感器-1楼-A区"
 })
 
 # 创建带SN的静态认证设备
 static_device = create_device(token, {
-    "productKey": "p12345", 
+    "productKey": "p12345",
+    "deviceKey": "DK002", 
     "deviceName": "湿度传感器-1楼-B区",
-    "deviceSN": "SN202312001",
+    "sn": "SN202312001",
     "authMode": 1
 })
 
 # 创建X509认证设备
 x509_device = create_device(token, {
     "productKey": "p12345",
+    "deviceKey": "DK003",
     "deviceName": "安全传感器-2楼-A区", 
     "authMode": 2,
-    "deviceFingerprint": "SHA256:1234567890abcdef..."
+    "fingerPrint": "d30075fefc2c86d1f9ae5a2960750485076d7213"
 })
 
 print(f"设备已创建: {normal_device['data']['deviceKey']}")
@@ -145,6 +150,7 @@ curl -X POST "https://iot-api.quectelcn.com/v2/devicemgr/r3/openapi/device/creat
   -H "Content-Type: application/json" \
   -d '{
     "productKey": "p12345",
+    "deviceKey": "DK001",
     "deviceName": "温度传感器-1楼-A区"
   }'
 

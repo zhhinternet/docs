@@ -80,10 +80,10 @@ const productDetail = await getProductDetail(token, 'p12345');
 console.log('产品信息:', productDetail.data);
 
 // 检查产品类型并执行相应逻辑
-if (productDetail.data.productType === 'GATEWAY') {
+if (productDetail.data.accessType === 1) {
   console.log('这是一个网关产品，可以管理子设备');
   // 获取网关下的子设备列表
-} else if (productDetail.data.productType === 'NORMAL') {
+} else if (productDetail.data.accessType === 0) {
   console.log('这是普通设备产品');
   // 执行普通设备相关逻辑
 }
@@ -124,14 +124,14 @@ product_detail = get_product_detail(token, "p12345")
 product = product_detail["data"]
 
 print(f"产品名称: {product['productName']}")
-print(f"产品类型: {product['productType']}")
-print(f"数据格式: {product['dataFormat']}")
-print(f"网络类型: {product['networkType']}")
+print(f"设备类型: {product['accessType']}")
+print(f"数据格式: {product['dataFmt']}")
+print(f"网络类型: {product['netWay']}")
 
 # 根据产品类型处理不同逻辑
-if product["productType"] == "GATEWAY":
+if product["accessType"] == 1:
     print("这是网关产品，支持子设备管理")
-elif product["productType"] == "NORMAL":
+elif product["accessType"] == 0:
     print("这是普通设备产品")
 ```
 

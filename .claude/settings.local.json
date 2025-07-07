@@ -5,7 +5,8 @@
       "Bash(find:*)",
       "Bash(ls:*)",
       "Bash(rm:*)",
-      "Bash(python3:*)"
+      "Bash(python3:*)",
+      "mcp__promptx__promptx_action"
     ],
     "deny": []
   }

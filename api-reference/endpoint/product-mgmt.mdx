@@ -84,7 +84,7 @@ openapi: 'GET /v2/quecproductmgr/r3/openapi/products'
 使用查询参数进行过滤和分页：
 
 ```bash
-GET /v2/quecproductmgr/r3/openapi/products?pageNum=2&pageSize=50&productType=GATEWAY
+GET /v2/quecproductmgr/r3/openapi/products?pageNum=2&pageSize=50&productKey=PK0001
 ```
 
 ## 代码示例
@@ -93,15 +93,15 @@ GET /v2/quecproductmgr/r3/openapi/products?pageNum=2&pageSize=50&productType=GAT
 
 ```javascript JavaScript
 async function listProducts(token, options = {}) {
-  const { pageNum = 1, pageSize = 20, productType } = options;
+  const { pageNum = 1, pageSize = 20, productKey } = options;
   
   const params = new URLSearchParams({
     pageNum: pageNum.toString(),
     pageSize: pageSize.toString()
   });
   
-  if (productType) {
-    params.append('productType', productType);
+  if (productKey) {
+    params.append('productKey', productKey);
   }
   
   const response = await fetch(
@@ -120,14 +120,14 @@ async function listProducts(token, options = {}) {
 // 使用示例
 const products = await listProducts(token, { 
   pageSize: 50, 
-  productType: 'NORMAL' 
+  productKey: 'PK0001' 
 });
 ```
 
 ```python Python
 import requests
 
-def list_products(token, page_num=1, page_size=20, product_type=None):
+def list_products(token, page_num=1, page_size=20, product_key=None):
     url = "https://iot-api.quectelcn.com/v2/quecproductmgr/r3/openapi/products"
     
     params = {
@@ -135,8 +135,8 @@ def list_products(token, page_num=1, page_size=20, product_type=None):
         "pageSize": page_size
     }
     
-    if product_type:
-        params["productType"] = product_type
+    if product_key:
+        params["productKey"] = product_key
     
     headers = {
         "Authorization": token,
@@ -147,7 +147,7 @@ def list_products(token, page_num=1, page_size=20, product_type=None):
     return response.json()
 
 # 使用示例
-products = list_products(token, page_size=50, product_type="GATEWAY")
+products = list_products(token, page_size=50, product_key="PK0001")
 ```
 
 ```curl cURL

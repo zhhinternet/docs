@@ -36,26 +36,25 @@ openapi: 'POST /v2/devicemgr/r1/openapi/product/gateway/unbind'
 
 | 参数名 | 类型 | 必填 | 说明 |
 |--------|------|------|------|
-| gatewayProductKey | String | 是 | 网关产品PK |
-| gatewayDeviceKey | String | 是 | 网关设备DK |
-| childProductKey | String | 是 | 子设备产品PK |
-| childDeviceKey | String | 是 | 子设备DK |
+| productKey | String | 是 | 子设备产品PK |
+| deviceKey | String | 是 | 子设备DK |
 
 ## 代码示例
 
 <CodeGroup>
 
 ```javascript JavaScript
-async function unbindChildDevice(token, unbindRequest) {
+async function unbindChildDevice(token, unbindParams) {
+  const params = new URLSearchParams(unbindParams);
+  
   const response = await fetch(
-    'https://iot-api.quectelcn.com/v2/devicemgr/r1/openapi/product/gateway/unbind',
+    `https://iot-api.quectelcn.com/v2/devicemgr/r1/openapi/product/gateway/unbind?${params}`,
     {
       method: 'POST',
       headers: {
         'Authorization': token,
         'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(unbindRequest)
+      }
     }
   );
   
@@ -66,12 +65,10 @@ async function unbindChildDevice(token, unbindRequest) {
   return await response.json();
 }
 
-// 解绑单个子设备
-const unbindRequest = {
-  gatewayProductKey: 'gateway_product_123',
-  gatewayDeviceKey: 'gateway_device_456',
-  childProductKey: 'child_product_789',
-  childDeviceKey: 'child_device_101'
+// 解绑单个子设备（通过URL参数）
+const unbindParams = {
+  productKey: 'child_product_789',
+  deviceKey: 'child_device_101'
 };
 
 // 安全解绑：包含确认步骤

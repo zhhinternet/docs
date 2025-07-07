@@ -83,21 +83,21 @@ async function displayDeviceInfo(token, productKey, deviceKey) {
     
     console.log('=== 设备详细信息 ===');
     console.log(`设备名称: ${device.deviceName}`);
-    console.log(`设备状态: ${device.status}`);
-    console.log(`最后上线: ${device.lastOnlineTime}`);
-    console.log(`固件版本: ${device.firmwareVersion}`);
-    console.log(`IP地址: ${device.ipAddress}`);
+    console.log(`设备状态: ${device.deviceStatus === 1 ? '在线' : '离线'}`);
+    console.log(`最后上线: ${device.lastConnTime ? new Date(device.lastConnTime).toLocaleString() : '从未上线'}`);
+    console.log(`激活状态: ${device.isActived === 1 ? '已激活' : '未激活'}`);
+    console.log(`设备SN: ${device.sn}`);
     
     // 根据设备状态显示不同信息
-    if (device.status === 'ONLINE') {
+    if (device.deviceStatus === 1) {
       console.log('✅ 设备在线，可以进行实时操作');
-      console.log(`信号强度: ${device.signalStrength}dBm`);
-      console.log(`网络类型: ${device.networkType}`);
-    } else if (device.status === 'OFFLINE') {
+      console.log(`数据格式: ${device.dataFmt === 3 ? '物模型' : '透传'}`);
+      console.log(`最后上线时间: ${new Date(device.lastConnTime).toLocaleString()}`);
+    } else if (device.deviceStatus === 0) {
       console.log('⚠️ 设备离线，消息将被缓存');
-      const offlineTime = new Date() - new Date(device.lastOnlineTime);
+      const offlineTime = new Date() - new Date(device.lastOfflineTime);
       console.log(`离线时长: ${Math.floor(offlineTime / 1000 / 60)} 分钟`);
-    } else if (device.status === 'UNACTIVE') {
+    } else if (device.isActived === 0) {
       console.log('🔄 设备未激活，等待首次连接');
     }
     
@@ -113,7 +113,7 @@ async function monitorDeviceStatus(token, productKey, deviceKey, intervalSeconds
   const monitor = setInterval(async () => {
     const device = await getDeviceDetail(token, productKey, deviceKey);
     if (device) {
-      console.log(`[${new Date().toISOString()}] 设备 ${deviceKey} 状态: ${device.data.status}`);
+      console.log(`[${new Date().toISOString()}] 设备 ${deviceKey} 状态: ${device.data.deviceStatus === 1 ? '在线' : '离线'}`);
     }
   }, intervalSeconds * 1000);
   
@@ -168,23 +168,27 @@ class DeviceMonitor:
             
             print(f"设备名称: {device['deviceName']}")
             print(f"设备DK: {device['deviceKey']}")
-            print(f"设备状态: {device['status']}")
+            print(f"设备状态: {'在线' if device['deviceStatus'] == 1 else '离线'}")
             print(f"创建时间: {device['createTime']}")
-            print(f"最后上线: {device.get('lastOnlineTime', '从未上线')}")
+            print(f"最后上线: {device.get('lastConnTime', '从未上线')}")
+            print(f"激活状态: {'已激活' if device['isActived'] == 1 else '未激活'}")
+            print(f"数据格式: {'物模型' if device['dataFmt'] == 3 else '透传'}")
             
-            if 'location' in device:
-                print(f"设备位置: {device['location']}")
+            if 'sn' in device:
+                print(f"设备SN: {device['sn']}")
             
-            if 'firmwareVersion' in device:
-                print(f"固件版本: {device['firmwareVersion']}")
+            if 'authMode' in device:
+                auth_modes = {0: '动态认证', 1: '静态认证', 2: 'X509'}
+                print(f"认证方式: {auth_modes.get(device['authMode'], '未知')}")
                 
-            if 'hardwareVersion' in device:
-                print(f"硬件版本: {device['hardwareVersion']}")
+            if 'isVirtual' in device:
+                print(f"设备类型: {'虚拟设备' if device['isVirtual'] == 1 else '真实设备'}")
             
-            # 计算在线时长统计
-            if device.get('totalOnlineTime'):
-                hours = device['totalOnlineTime'] // 3600
-                print(f"累计在线时长: {hours} 小时")
+            # 计算在线时长统计  
+            if device.get('lastConnTime') and device.get('createTime'):
+                online_duration = (device['lastConnTime'] - device['createTime']) / 1000
+                hours = online_duration // 3600
+                print(f"累计在线时长: {hours:.1f} 小时")
             
             return device
             
@@ -202,16 +206,16 @@ class DeviceMonitor:
         issues = []
         
         # 检查连接状态
-        if device['status'] == 'OFFLINE':
+        if device['deviceStatus'] == 0:
             health_score -= 30
             issues.append("设备离线")
-        elif device['status'] == 'UNACTIVE':
+        elif device['isActived'] == 0:
             health_score -= 50
             issues.append("设备未激活")
         
         # 检查最后上线时间
-        if device.get('lastOnlineTime'):
-            last_online = datetime.fromisoformat(device['lastOnlineTime'].replace('Z', '+00:00'))
+        if device.get('lastConnTime'):
+            last_online = datetime.fromtimestamp(device['lastConnTime'] / 1000, tz=timezone.utc)
             offline_hours = (datetime.now(timezone.utc) - last_online).total_seconds() / 3600
             
             if offline_hours > 24:
@@ -221,10 +225,10 @@ class DeviceMonitor:
                 health_score -= 10
                 issues.append(f"超过1小时未上线 ({offline_hours:.1f}小时)")
         
-        # 检查消息频率
-        if device.get('messageCount', 0) == 0:
+        # 检查设备认证状态
+        if device.get('isVerified', 0) == 0:
             health_score -= 15
-            issues.append("无消息上报")
+            issues.append("设备未通过二次认证")
         
         print(f"\n设备健康评分: {health_score}/100")
         if issues:
@@ -264,100 +268,48 @@ curl -X GET "https://iot-api.quectelcn.com/v2/devicemgr/r3/openapi/device/detail
 ```json
 {
   "code": 200,
-  "msg": "OK",
+  "msg": "",
   "data": {
-    "deviceKey": "d67890",
+    "activedTime": 1748944587349,
+    "authMode": 0,
+    "createTime": 1744179122906,
+    "dataFmt": 3,
+    "deviceKey": "DK00001",
     "deviceName": "车间温度传感器-001",
-    "productKey": "p12345",
-    "status": "ONLINE",
-    "createTime": "2023-12-01T08:30:00Z",
-    "lastOnlineTime": "2023-12-15T14:25:30Z",
-    "firstOnlineTime": "2023-12-01T09:15:20Z",
-    "description": "车间A区域温度监测设备",
-    "location": {
-      "latitude": 31.2304,
-      "longitude": 121.4737,
-      "address": "上海市黄浦区车间A"
-    },
-    "firmwareVersion": "v2.1.3",
-    "hardwareVersion": "v1.0.1",
-    "deviceModel": "QT-TH-2023",
-    "networkInfo": {
-      "ipAddress": "192.168.1.100",
-      "networkType": "4G-LTE",
-      "signalStrength": -75,
-      "carrierId": "46000",
-      "cellId": "12345678"
-    },
-    "statistics": {
-      "totalOnlineTime": 86400,
-      "messageCount": 1250,
-      "lastMessageTime": "2023-12-15T14:20:15Z",
-      "dataUsage": {
-        "uplink": 1048576,
-        "downlink": 524288
-      }
-    },
-    "configuration": {
-      "reportingInterval": 300,
-      "batchSize": 10,
-      "retryTimes": 3,
-      "heartbeatInterval": 60
-    },
-    "security": {
-      "authMethod": "PSK",
-      "encryptionEnabled": true,
-      "lastAuthTime": "2023-12-15T14:25:30Z",
-      "certificateExpiry": "2024-12-01T00:00:00Z"
-    },
-    "tags": {
-      "department": "生产部",
-      "workshop": "A车间",
-      "equipment": "温控系统"
-    }
+    "deviceStatus": 1,
+    "firstConnTime": 1744179201775,
+    "isActived": 1,
+    "isVerified": 1,
+    "isVirtual": 0,
+    "lastConnTime": 1748922175239,
+    "lastOfflineTime": 1747316156218,
+    "productKey": "PK0001",
+    "sn": "SN00001",
+    "updateTime": 1748944587349
   }
 }
 ```
 
-## 详情字段说明
+## 响应字段说明
 
-<AccordionGroup>
-  <Accordion title="基本信息字段">
-    - **deviceKey**: 设备唯一标识符
-    - **deviceName**: 设备友好名称
-    - **productKey**: 所属产品标识
-    - **status**: 设备当前状态
-    - **createTime**: 设备注册时间
-    - **description**: 设备描述信息
-    - **location**: 设备地理位置信息
-  </Accordion>
-  
-  <Accordion title="版本信息字段">
-    - **firmwareVersion**: 设备固件版本
-    - **hardwareVersion**: 设备硬件版本
-    - **deviceModel**: 设备型号
-    - **softwareVersion**: 应用软件版本
-    - **protocolVersion**: 通信协议版本
-  </Accordion>
-  
-  <Accordion title="网络信息字段">
-    - **ipAddress**: 设备IP地址
-    - **networkType**: 网络连接类型
-    - **signalStrength**: 信号强度(dBm)
-    - **carrierId**: 运营商标识
-    - **cellId**: 基站小区ID
-    - **macAddress**: MAC地址
-  </Accordion>
-  
-  <Accordion title="统计信息字段">
-    - **totalOnlineTime**: 累计在线时长(秒)
-    - **messageCount**: 消息总数
-    - **lastMessageTime**: 最后消息时间
-    - **dataUsage**: 数据流量统计
-    - **errorCount**: 错误次数
-    - **successRate**: 成功率百分比
-  </Accordion>
-</AccordionGroup>
+| 字段名 | 类型 | 说明 |
+|--------|------|------|
+| deviceKey | String | 设备DK |
+| deviceName | String | 设备名称 |
+| productKey | String | 产品PK |
+| deviceStatus | Integer | 设备状态：1-在线，0-离线 |
+| createTime | Long | 创建时间(时间戳) |
+| activedTime | Long | 设备激活时间(时间戳) |
+| firstConnTime | Long | 首次连接时间(时间戳) |
+| lastConnTime | Long | 最后一次上线时间(时间戳) |
+| lastOfflineTime | Long | 最后一次离线时间(时间戳) |
+| updateTime | Long | 更新时间(时间戳) |
+| isActived | Integer | 是否激活：0-未激活，1-激活 |
+| isVerified | Integer | 二次认证：0-未认证，1-已认证 |
+| isVirtual | Integer | 是否虚拟设备：0-真实，1-虚拟 |
+| authMode | Integer | 认证方式：0-动态认证，1-静态认证，2-X509 |
+| dataFmt | Integer | 数据格式：0-透传，3-物模型 |
+| sn | String | 设备SN |
 
 ## 使用场景
 

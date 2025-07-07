@@ -1,6 +1,6 @@
 ---
 title: '查询用户设备列表'
-openapi: 'GET /v2/binding/enterpriseapi/userDeviceList'
+openapi: 'GET /v2/binding/enduserapi/userDeviceList'
 ---
 
 ## 查询用户设备列表
@@ -29,24 +29,37 @@ openapi: 'GET /v2/binding/enterpriseapi/userDeviceList'
 
 ## 接口地址
 
-`GET /v2/binding/enterpriseapi/userDeviceList`
+`GET /v2/binding/enduserapi/userDeviceList`
 
 ## 请求参数
 
 | 参数名 | 类型 | 必填 | 说明 |
 |--------|------|------|------|
-| uid | String | 是 | 用户ID |
+| deviceName | String | 否 | 设备名称 |
+| dk | String | 否 | Device Key |
 | page | Integer | 否 | 当前页，默认为第1页 |
 | pageSize | Integer | 否 | 页大小，默认为10条 |
+| pkList | String | 否 | Product Key列表，多个使用英文逗号分隔 |
 
 ## 代码示例
 
 <CodeGroup>
 
 ```javascript JavaScript
-async function getUserDeviceList(token, uid, page = 1, pageSize = 10) {
+async function getUserDeviceList(token, options = {}) {
+  const { deviceName, dk, page = 1, pageSize = 10, pkList } = options;
+  
+  const params = new URLSearchParams({
+    page: page.toString(),
+    pageSize: pageSize.toString()
+  });
+  
+  if (deviceName) params.append('deviceName', deviceName);
+  if (dk) params.append('dk', dk);
+  if (pkList) params.append('pkList', pkList);
+  
   const response = await fetch(
-    `https://iot-api.quectelcn.com/v2/binding/enterpriseapi/userDeviceList?uid=${uid}&page=${page}&pageSize=${pageSize}`,
+    `https://iot-api.quectelcn.com/v2/binding/enduserapi/userDeviceList?${params}`,
     {
       method: 'GET',
       headers: {
@@ -64,7 +77,7 @@ async function getUserDeviceList(token, uid, page = 1, pageSize = 10) {
 }
 
 // 获取用户设备列表
-const deviceList = await getUserDeviceList(token, 'user123', 1, 20);
+const deviceList = await getUserDeviceList(token, { page: 1, pageSize: 20 });
 console.log('用户设备列表:', deviceList.data.list);
 
 // 遍历设备信息
